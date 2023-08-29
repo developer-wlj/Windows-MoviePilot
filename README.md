@@ -15,3 +15,12 @@
 ### 如何自己升级版本
 - MoviePilot前端文件在nginx-html-MoviePilot-Frontend下, 替换成自己打包好的文件
 - MoviePilot后端文件在project-MoviePilot目录下 使用git 或ide方式 进行代码合并
+
+### 关于Windows下填写目录问题
+填写形式为 r"C:\dir", 如  
+ `DOWNLOAD_PATH: str = r"C:\Users\Default\Downloads"`
+
+ ### 关于窗口闪退问题
+ 找到log文件, 查看具体错误, 文件在  
+ `桌面图标右键-打开文件所在的位置-MoviePilot文件夹-config文件夹-logs文件夹-moviepilot.log`
+ 
