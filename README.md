@@ -16,6 +16,9 @@
 - MoviePilot前端文件在nginx-html-MoviePilot-Frontend下, 替换成自己打包好的文件
 - MoviePilot后端文件在project-MoviePilot目录下 使用git 或ide方式 进行代码合并
 
+### 如何配置config.py
+- 只要填写的值不是空类型 布尔类型和数字类型 其他的值统统需要加""引住
+
 ### 关于Windows下填写目录问题
 填写形式为 r"C:\dir", 如  
  `DOWNLOAD_PATH: str = r"C:\Users\Default\Downloads"`
