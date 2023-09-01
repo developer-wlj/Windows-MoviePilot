@@ -4,12 +4,13 @@ on:
 env:
   REPO_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
   REPO: ${{ secrets.REPO }}
-outputs:
-      output1: ${{ steps.Make_Python_package.outputs.KEY }}
 
 jobs:
   Windows-build:
     runs-on: windows-latest
+    outputs:
+      output1: ${{ steps.Make_Python_package.outputs.KEY }}
+
     steps:
       - name: Init Python 3.11.4
         uses: actions/setup-python@v4
