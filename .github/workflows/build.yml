@@ -27,6 +27,9 @@ jobs:
           git clone ${{ secrets.REPO }}
           ls
           pwd
+          cd Inno-Setup-MoviePilot
+          ls
+          pwd
       - name: 打印目录文件
         run: |
           ls
