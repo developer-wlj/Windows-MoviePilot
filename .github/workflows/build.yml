@@ -24,6 +24,7 @@ jobs:
           ref: main
           repository: ${{ secrets.REPO }}
           ssh-key: ${{ secrets.DEPLOY_KEY }}
+          path: 'Inno-Setup-MoviePilot'
 
       - name: exe代码目录打印
         run: |
@@ -35,6 +36,7 @@ jobs:
         with:
           ref: wlj0807
           repository: developer-wlj/MoviePilot
+          path: 'MoviePilot'
 
       - name: 后端代码目录打印
         run: |
