@@ -1,6 +1,11 @@
 # Windows-MoviePilot
 - 基于批处理转exe实现
 
+### 版本命名规则
+如 "1.1.0.d0a586a" 
+- 1.1.0 指的是原MoviePilot仓库 发布的版本号
+- d0a586a 指的是 原MoviePilot仓库 最近一次提交代码的hash
+  
 ### 如何运行
 以win10为例
 1. 双击安装包, 完成安装
@@ -8,7 +13,7 @@
 3. 双击桌面MoviePilot.exe运行
 
 ### 如何升级作者打包好的版本
-1. 桌面图标右键-打开文件所在的位置-启动stop.bat 如安装目录在系统盘的Program Files或Program Files (x86),需要以管理员身份运行
+1. 桌面图标右键-打开文件所在的位置-启动stop.bat ~如安装目录在系统盘的Program Files或Program Files (x86),需要以管理员身份运行~
 2. 升级安装, 会覆盖config.py, 因此需备份配置好的config.py及category.yaml,如果category.yaml使用默认配置,无需备份category.yaml
 3. 安装升级包
    
@@ -18,6 +23,7 @@
 
 ### 如何配置config.py
 - 只要填写的值不是空类型 布尔类型和数字类型 其他的值统统需要加""引住
+- 原MoviePilot代码 可能会对config.py 追加新的字段 这时你需要在之前配置好的config文件,也要追加相关字段,或者覆盖安装后 重新配置config
 
 ### 关于Windows下填写目录问题
 填写形式为 r"C:\dir", 如  
@@ -25,5 +31,9 @@
 
  ### 关于窗口闪退问题
  找到log文件, 查看具体错误, 文件在  
- `桌面图标右键-打开文件所在的位置-MoviePilot文件夹-config文件夹-logs文件夹-moviepilot.log`
+ `桌面图标右键-打开文件所在的位置-MoviePilot文件夹-config文件夹-logs文件夹-moviepilot.log`  
+ 如果没log日志或不是最新的日志,请 桌面图标右键-打开文件所在的位置-MoviePilot文件夹 在路径上输入cmd 并回车,在cmd窗口中输入  
+ `..\..\Python3.11\python .\app\main.py` 查看错误  
+ 如果提示Permission denied字样 cmd需管理员身份运行
+ 
  
