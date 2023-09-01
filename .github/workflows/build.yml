@@ -147,7 +147,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: windows
-          path: D:\a\MoviePilot\exe\build\*.exe
+          path: .\exe\build\*.exe
         #
         #    - name: Generate Release
         #      uses: softprops/action-gh-release@v1
