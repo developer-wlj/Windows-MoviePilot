@@ -20,8 +20,13 @@ jobs:
         uses: actions/checkout@v2
         with:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
-          ref: main
-          repository: ${{ secrets.REPO }}
+          # ref: main
+          # repository: developer-wlj/Inno-Setup-MoviePilot.git
+      - name: Fetch My Private Repository
+        run: |
+          git clone ${{ secrets.REPO }}
+          ls
+          pwd
       - name: 打印目录文件
         run: |
           ls
