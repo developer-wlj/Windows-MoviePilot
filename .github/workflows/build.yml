@@ -1,6 +1,9 @@
 name: TEST Build
 on:
   workflow_dispatch:
+env:
+  REPO_TOKEN:  ${{ secret.PRIVATE_REPO_TOKEN }}
+  REPO: ${{ secret.REPO }}
 
 jobs:
   Windows-build:
@@ -9,9 +12,9 @@ jobs:
       - name: 拉取代码
         uses: actions/checkout@v2
         with:
-          token: ${{ secret.PRIVATE_REPO_TOKEN }}
+          token: ${{ env.PRIVATE_REPO_TOKEN }}
           ref: main
-          repository: ${{ secret.REPO }}
+          repository: ${{ env.REPO }}
       - name: 打印目录文件
         run: |
           ls
