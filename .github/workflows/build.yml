@@ -2,7 +2,7 @@ name: TEST Build
 on:
   workflow_dispatch:
 env:
-  REPO_TOKEN:  ${{ secret.PRIVATE_REPO_TOKEN }}
+  REPO_TOKEN: ${{ secret.PRIVATE_REPO_TOKEN }}
   REPO: ${{ secret.REPO }}
 
 jobs:
