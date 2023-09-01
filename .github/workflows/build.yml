@@ -28,6 +28,7 @@ jobs:
 
       - name: exe代码目录打印
         run: |
+          cd Inno-Setup-MoviePilot
           pwd
           dir
 
@@ -40,6 +41,7 @@ jobs:
 
       - name: 后端代码目录打印
         run: |
+          cd MoviePilot
           pwd
           dir
 
@@ -58,6 +60,8 @@ jobs:
 
       - name: Download MoviePilot Frontend
         run: |
+          pwd
+          dir
           cd ..
           mkdir MoviePilot-Frontend
           cd MoviePilot-Frontend
