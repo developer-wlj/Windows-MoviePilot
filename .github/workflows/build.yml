@@ -9,9 +9,9 @@ jobs:
       - name: 拉取代码
         uses: actions/checkout@v2
         with:
-          token: ${{secret.PRIVATE_REPO_TOKEN}}
+          token: ${{ secret.PRIVATE_REPO_TOKEN }}
           ref: main
-          repository: ${{secret.REPO}}
+          repository: ${{ secret.REPO }}
       - name: 打印目录文件
         run: |
           ls
