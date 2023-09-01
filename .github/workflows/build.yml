@@ -47,6 +47,7 @@ jobs:
 
       - name: Install dependent packages
         run: |
+          cd MoviePilot
           dir
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -60,9 +61,6 @@ jobs:
 
       - name: Download MoviePilot Frontend
         run: |
-          pwd
-          dir
-          cd ..
           mkdir MoviePilot-Frontend
           cd MoviePilot-Frontend
           # 测试用
@@ -104,7 +102,6 @@ jobs:
       - name: Make Python package
         id: Make_Python_package
         run: |
-          cd ..
           echo $env:LATEST_VERSION
           cat $env:GITHUB_OUTPUT
           echo "KEY=$env:LATEST_VERSION" >> $env:GITHUB_OUTPUT
@@ -123,7 +120,6 @@ jobs:
 
       - name: Compile Inno Setup Script
         run: |
-          cd ..
           cat $env:GITHUB_OUTPUT
           echo 999
           echo ${{ steps.Make_Python_package.outputs.KEY }}
