@@ -2,8 +2,8 @@ name: TEST Build
 on:
   workflow_dispatch:
 env:
-  REPO_TOKEN: ${{ secret.PRIVATE_REPO_TOKEN }}
-  REPO: ${{ secret.REPO }}
+  REPO_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+  REPO: ${{ secrets.REPO }}
 
 jobs:
   Windows-build:
