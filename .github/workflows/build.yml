@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           ref: wlj0807
-          repository: developer-wlj/Windows-MoviePilot
+          repository: developer-wlj/MoviePilot
 
       - name: 后端代码目录打印
         run: |
