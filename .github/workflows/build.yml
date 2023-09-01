@@ -88,7 +88,8 @@ jobs:
           Write-Host "Extracting zip"
           # 解压
           Expand-Archive dist.zip -DestinationPath .
-          Get-ChildItem -Path .\dist -Recurse | Copy-Item -Destination .
+          # Get-ChildItem -Path .\dist -Recurse | Copy-Item -Destination .
+          Move-Item -Path .\dist\* -Destination . -Force
           Remove-Item -Path "dist.zip"
           Remove-Item -Path "dist" -Recurse
           # 提取tag_name的值
