@@ -17,19 +17,20 @@ jobs:
           echo ${{ secrets.PRIVATE_REPO_TOKEN }}
           echo ${{ secrets.REPO }}
       - name: 拉取代码
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
-          # ref: main
-          # repository: developer-wlj/Inno-Setup-MoviePilot.git
+          ref: main
+          repository: developer-wlj/Inno-Setup-MoviePilot
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
       - name: Fetch My Private Repository
         run: |
-          git clone ${{ secrets.REPO }}
-          ls
-          pwd
-          cd Inno-Setup-MoviePilot
+          # git clone ${{ secrets.REPO }}
+          # ls
+          # pwd
+          # cd Inno-Setup-MoviePilot
           ls
           pwd
       - name: 打印目录文件
         run: |
-          ls
+          # ls
