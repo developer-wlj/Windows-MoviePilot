@@ -9,6 +9,13 @@ jobs:
   Windows-build:
     runs-on: ubuntu-latest
     steps:
+      - name: 打印变量
+        run: |
+          ls
+          echo $REPO_TOKEN
+          echo $REPO
+          echo ${{ secrets.PRIVATE_REPO_TOKEN }}
+          echo ${{ secrets.REPO }}
       - name: 拉取代码
         uses: actions/checkout@v2
         with:
