@@ -1,0 +1,17 @@
+name: TEST Build
+on:
+  workflow_dispatch:
+
+jobs:
+  Windows-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v2
+        with:
+          token: ${{secret.PRIVATE_REPO_TOKEN}}
+          ref: main
+          repository: ${{secret.REPO}}
+      - name: 打印目录文件
+        run: |
+          ls
