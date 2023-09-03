@@ -45,7 +45,8 @@ jobs:
           # 提取tag_name的值
           $tagName = $response2.tag_name
           echo $tagName
-          if ($tagName -contains $jxxghp_version) {
+          echo $jxxghp_version.Substring(0, 7)
+          if ($tagName -contains $jxxghp_version.Substring(0, 7)) {
             Write-Output "版本相同,无需更新"
             exit 1
           } else {
