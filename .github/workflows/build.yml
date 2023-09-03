@@ -51,7 +51,7 @@ jobs:
           } else {
             Write-Output "检测到新的commit 执行重新打包"
           }
-         else {
+         } else {
           Write-Output "developer-wlj/MoviePilot需要手动同步上游仓库"
           exit 1
          }
