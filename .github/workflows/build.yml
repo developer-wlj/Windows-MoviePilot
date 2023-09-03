@@ -40,10 +40,10 @@ jobs:
          $response = Invoke-WebRequest -Uri https://api.github.com/repos/jxxghp/MoviePilot/git/refs/heads | ConvertFrom-Json
          $jxxghp_version=$response.object.sha
          if ($newArray -contains $jxxghp_version) {
-           Write-Output "版本相同无需更新"
-           exit 1
-         } else {
            Write-Output "检测到新的commit 执行重新打包"
+         } else {
+           Write-Output "developer-wlj/MoviePilot需要手动同步上游仓库"
+           exit 1
          }
 
       - name: 拉取exe代码
