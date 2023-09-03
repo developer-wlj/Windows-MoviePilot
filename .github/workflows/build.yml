@@ -24,7 +24,7 @@ jobs:
          $response = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/MoviePilot/git/refs/heads/wlj0807 | ConvertFrom-Json
          echo $response.object.sha
          $latest_commit_sha = $response.object.sha
-         echo latest_commit_sha
+         echo $latest_commit_sha
          echo 555
          # 获取倒数第二次提交的hash
          $response1 = Invoke-WebRequest -Uri "https://api.github.com/repos/developer-wlj/MoviePilot/git/commits/$latest_commit_sha" | ConvertFrom-Json
@@ -39,6 +39,7 @@ jobs:
          }
          $response = Invoke-WebRequest -Uri https://api.github.com/repos/jxxghp/MoviePilot/git/refs/heads | ConvertFrom-Json
          $jxxghp_version=$response.object.sha
+         echo $jxxghp_version
          if ($newArray -contains $jxxghp_version) {
            Write-Output "检测到新的commit 执行重新打包"
          } else {
