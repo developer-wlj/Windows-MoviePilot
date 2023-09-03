@@ -46,7 +46,7 @@ jobs:
           $tagName = $response2.tag_name
           echo $tagName
           echo $jxxghp_version.Substring(0, 7)
-          if ($tagName -contains $jxxghp_version.Substring(0, 7)) {
+          if ($tagName.contains($jxxghp_version.Substring(0, 7))) {
             Write-Output "版本相同,无需更新"
             exit 1
           } else {
