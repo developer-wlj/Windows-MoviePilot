@@ -1,6 +1,8 @@
 name: TEST Build
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 */4 * * *'
 env:
   REPO_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
   REPO: ${{ secrets.REPO }}
@@ -16,6 +18,33 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11.4'
+      - name: 版本对比
+        run: |
+         # 发送GET请求
+         $response = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/MoviePilot/git/refs/heads/wlj0807 | ConvertFrom-Json
+         echo $response.object.sha
+         $latest_commit_sha = $response.object.sha
+         echo latest_commit_sha
+         echo 555
+         # 获取倒数第二次提交的hash
+         $response1 = Invoke-WebRequest -Uri "https://api.github.com/repos/developer-wlj/MoviePilot/git/commits/$latest_commit_sha" | ConvertFrom-Json
+         $newArray = [System.Collections.ArrayList]::new()
+         # 遍历数组中的每个对象
+         foreach ($item in $response1.parents) {
+           # 获取每个对象的sha属性值
+           $sha = $item.sha
+ 
+           # 将sha属性值添加到新数组中
+           $newArray.Add($sha)
+         }
+         $response = Invoke-WebRequest -Uri https://api.github.com/repos/jxxghp/MoviePilot/git/refs/heads | ConvertFrom-Json
+         $jxxghp_version=$response.object.sha
+         if ($newArray -contains $jxxghp_version) {
+           Write-Output "版本相同无需更新"
+           exit 1
+         } else {
+           Write-Output "检测到新的commit 执行重新打包"
+         }
 
       - name: 拉取exe代码
         uses: actions/checkout@v3
