@@ -41,10 +41,19 @@ jobs:
          $jxxghp_version=$response.object.sha
          echo $jxxghp_version
          if ($newArray -contains $jxxghp_version) {
-           Write-Output "检测到新的commit 执行重新打包"
-         } else {
-           Write-Output "developer-wlj/MoviePilot需要手动同步上游仓库"
-           exit 1
+          $response2 = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/MoviePilot/releases/latest | ConvertFrom-Json
+          # 提取tag_name的值
+          $tagName = $response2.tag_name.Substring(0, 7)
+          echo $tagName
+          if ($tagName -eq $jxxghp_version){
+            Write-Output "版本相同,无需更新"
+            exit 1
+          } else {
+            Write-Output "检测到新的commit 执行重新打包"
+          }
+         else {
+          Write-Output "developer-wlj/MoviePilot需要手动同步上游仓库"
+          exit 1
          }
 
       - name: 拉取exe代码
