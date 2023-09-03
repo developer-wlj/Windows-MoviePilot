@@ -41,11 +41,11 @@ jobs:
          $jxxghp_version=$response.object.sha
          echo $jxxghp_version
          if ($newArray -contains $jxxghp_version) {
-          $response2 = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/MoviePilot/releases/latest | ConvertFrom-Json
+          $response2 = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/Windows-MoviePilot/releases/latest | ConvertFrom-Json
           # 提取tag_name的值
-          $tagName = $response2.tag_name.Substring(0, 7)
+          $tagName = $response2.tag_name
           echo $tagName
-          if ($tagName -eq $jxxghp_version){
+          if ($tagName -contains $jxxghp_version){
             Write-Output "版本相同,无需更新"
             exit 1
           } else {
