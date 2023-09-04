@@ -2,7 +2,7 @@ name: TEST Build
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */4 * * *'
+    - cron: '0 0/4 * * *'
 env:
   REPO_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
   REPO: ${{ secrets.REPO }}
