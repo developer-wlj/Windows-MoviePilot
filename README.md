@@ -8,7 +8,7 @@
   
 ### 如何运行
 Python3.11支持Win10和Win11平台,Win7不支持, Win8需自测 还有平台必须是64位
-1. 用户需自己提前安装好谷歌浏览器, 官网地址: https://www.google.com/intl/zh-CN/chrome/
+1. 用户需自己提前安装好谷歌浏览器(MoviePilot需要检测到chrome环境,chrome必须是默认路径,如果用户手动更改过,需重新安装), 官网地址: https://www.google.com/intl/zh-CN/chrome/
 2. 双击安装Windows-MoviePilot包, 完成安装
 3. 桌面图标右键-打开文件所在的位置-MoviePilot文件夹-app文件夹-core文件夹-打开config.py文件-配置所需变量
 4. 双击桌面MoviePilot.exe运行
