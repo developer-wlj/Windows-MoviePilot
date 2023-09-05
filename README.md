@@ -7,7 +7,7 @@
 - d0a586a 指的是 原MoviePilot仓库 最近一次提交代码的hash
   
 ### 如何运行
-以win10为例
+Python3.11支持Win10和Win11平台,Win7不支持, Win8需自测 还有平台必须是64位
 1. 双击安装包, 完成安装
 2. 桌面图标右键-打开文件所在的位置-MoviePilot文件夹-app文件夹-core文件夹-打开config.py文件-配置所需变量
 3. 双击桌面MoviePilot.exe运行
@@ -23,7 +23,7 @@
 
 ### 如何配置config.py
 - 只要填写的值不是空类型 布尔类型和数字类型 其他的值统统需要加""引住
-- 原MoviePilot代码 可能会对config.py 追加新的字段 这时你需要在之前配置好的config文件,也要追加相关字段,或者覆盖安装后 重新配置config
+- MoviePilot代码 可能会对config.py 追加新的字段 这时你需要在老的config.py中,也要追加相应字段,或者覆盖安装后 重新配置config
 
 ### 关于Windows下填写目录问题
 填写形式为 r"C:\dir", 如  
