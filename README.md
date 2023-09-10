@@ -35,7 +35,7 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
  找到log文件, 查看具体错误, 文件在  
  `桌面图标右键-打开文件所在的位置-MoviePilot文件夹-config文件夹-logs文件夹-moviepilot.log`  
  如果没log日志或不是最新的日志,请 桌面图标右键-打开文件所在的位置-MoviePilot文件夹 在路径上输入cmd 并回车,在cmd窗口中输入  
- `..\..\Python3.11\python .\app\main.py` 查看错误  
+ `..\..\Python3.11\python .\app\main.py` 并回车，查看错误  
  如果提示Permission denied字样 cmd需管理员身份运行
  
  
