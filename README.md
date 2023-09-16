@@ -24,6 +24,7 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
 - MoviePilot后端文件在project-MoviePilot目录下 使用git 或ide方式 进行代码合并
 
 ### 如何配置config.py
+- 示例请参照 [config.example.py](https://github.com/developer-wlj/Windows-MoviePilot/blob/main/config.example.py)
 - 只要填写的值不是None、布尔类型和数字类型 其他的值统统需要加""引住
 - MoviePilot代码 可能会对config.py 追加新的字段, 如果你使用之前配置的config.py,这时你需要在老的config.py中,也要追加相应字段,或者覆盖安装后 重新配置config
 
