@@ -27,8 +27,8 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
 ### 如何配置config.py
 - 示例请参照 [config.example.py](https://github.com/developer-wlj/Windows-MoviePilot/blob/main/config.example.py)
 - 只要填写的值不是None、布尔类型和数字类型 其他的值统统需要加""引住
-- MoviePilot代码 可能会对config.py 追加新的字段, 如果你使用之前配置的config.py,这时你需要在老的config.py中,也要追加相应字段,或者覆盖安装后 重新配置config.py
-![photo_2023-09-17_21-46-03](https://github.com/developer-wlj/Windows-MoviePilot/assets/55836679/3a237a5d-7b16-4f1a-8313-fa45710a94c5)
+- MoviePilot代码 可能会对config.py 追加新的字段, 如果你使用之前配置的config.py,这时你需要在老的config.py中,也要追加相应字段,或者覆盖安装后 重新配置config.py  
+![photo_2023-09-17_21-46-03](https://github.com/developer-wlj/Windows-MoviePilot/assets/55836679/3a237a5d-7b16-4f1a-8313-fa45710a94c5)  
 如图所示, 提示 `AttributeError: 'Settings' object has no attribute 'xxxx'` 就是老的config.py不能在新版本中使用, 需重新配置
 
 
@@ -47,6 +47,16 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
 可以肯定的是后端启动失败了, 多数原因 config.py配置错误  
 如果启动成功, 会有一个MoviePilot窗口, 没有窗口就代表启动失败  
 手动cmd方式启动后端 详情看上述 关于窗口闪退问题 cmd方式
+
+ ### 关于如何使用CF IP优选插件问题
+ 1. 安装自定义Hosts插件和Cloudflare IP优选插件
+ 2. 自定义Hosts打开启用插件选项  
+    在自定义Hosts里面填写如 `1.1.1.1 nexus.test` 注意1.1.1.1可以随意填写,但 要和 Cloudflare IP优选插件里面的 优选IP栏 IP一致,并点击保存
+ 3. 打开Cloudflare IP优选插件, 在优选IP栏 随意填写一个ip, 如 1.1.1.1  
+    IPv4和IPv6 根据自身环境勾选  
+    高级参数栏 可填写 `-dd` 注意的是 填写-dd 插件不会测速 运行时长在2分钟左右, 如果不填写-dd 插件会测速 运行时长在10分钟左右  
+    打开立即运行一次选项 并点击保存
+ 4. 如果提示`更新系统hosts文件失败`, 请查看`C:\WINDOWS\System32\drivers\etc` 目录下的hosts文件, 是否设置了只读权限
 
 
  
