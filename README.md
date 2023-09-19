@@ -13,9 +13,10 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
 2. 双击安装Windows-MoviePilot包, 完成安装
 3. (步骤3可以先跳过,看看是否能成功运行)桌面图标右键-打开文件所在的位置-MoviePilot文件夹-app文件夹-core文件夹-打开config.py文件-配置所需变量
 4. 双击桌面MoviePilot.exe运行
+5. 手动打开浏览器 输入 http://127.0.0.1:3000 用户名默认: admin, 密码默认: password
 
 ### 如何升级作者打包好的版本
-1. 桌面图标右键-打开文件所在的位置-启动stop.bat ~如安装目录在系统盘的Program Files或Program Files (x86),需要以管理员身份运行~
+1. ~桌面图标右键-打开文件所在的位置-启动stop.bat 如安装目录在系统盘的Program Files或Program Files (x86),需要以管理员身份运行~
 2. 升级安装, 会覆盖config.py, 因此需备份配置好的config.py及category.yaml,如果category.yaml使用默认配置,无需备份category.yaml
 3. 安装升级包
    
