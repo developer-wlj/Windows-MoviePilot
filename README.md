@@ -34,8 +34,10 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
 
 ### 关于Windows下填写目录问题
 填写形式为 r"C:\dir", 如  
- `DOWNLOAD_PATH: str = r"C:\Users\Default\Downloads"`
-
+ `DOWNLOAD_PATH: str = r"C:\Users\Default\Downloads"`  
+ 如果填写是根目录 改为  
+ `DOWNLOAD_PATH: str = r"C:"` 或 `DOWNLOAD_PATH: str = r"C:\\"`
+ 
  ### 关于窗口闪退问题
  找到log文件, 查看具体错误, 文件在  
  `桌面图标右键-打开文件所在的位置-MoviePilot文件夹-config文件夹-logs文件夹-moviepilot.log`  
