@@ -26,6 +26,7 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
 
 ### 如何配置config.py
 - 示例请参照 [config.example.py](https://github.com/developer-wlj/Windows-MoviePilot/blob/main/config.example.py)
+- 很重要的一点! 很重要的一点!! 很重要的一点!!! 请不要删除config.py你没有使用到的变量, 删除可能无法启动服务
 - 只要填写的值不是None、布尔类型和数字类型 其他的值统统需要加""引住
 - MoviePilot代码 可能会对config.py 追加新的字段, 如果你使用之前配置的config.py,这时你需要在老的config.py中,也要追加相应字段,或者覆盖安装后 重新配置config.py  
 ![photo_2023-09-17_21-46-03](https://github.com/developer-wlj/Windows-MoviePilot/assets/55836679/3a237a5d-7b16-4f1a-8313-fa45710a94c5)  
