@@ -2,8 +2,7 @@
 - 基于批处理转exe实现
 
 ### 版本更新说明
-- 适配MoviePilot 版本v1.2.9新增的app.env, windows下如何使用app.env, 请查看 [关于app.env如何配置](https://github.com/developer-wlj/Windows-MoviePilot/edit/main/README.md#appenv%E5%A6%82%E4%BD%95%E9%85%8D%E7%BD%AE)
-
+- 适配MoviePilot 版本v1.2.9新增的app.env, windows下如何使用app.env, 请查看 [关于app.env如何配置](https://github.com/developer-wlj/Windows-MoviePilot#%E5%85%B3%E4%BA%8Eappenv%E5%A6%82%E4%BD%95%E9%85%8D%E7%BD%AE)
 ### 版本命名规则
 如 "1.1.0.d0a586a" 
 - 1.1.0 指的是原MoviePilot仓库 发布的版本号
