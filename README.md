@@ -1,6 +1,9 @@
 # Windows-MoviePilot
 - 基于批处理转exe实现
 
+### 版本更新说明
+- 适配MoviePilot 版本v1.2.9新增的app.env, windows下如何使用app.env, 请查看 [关于app.env如何配置](https://github.com/developer-wlj/Windows-MoviePilot/edit/main/README.md#appenv%E5%A6%82%E4%BD%95%E9%85%8D%E7%BD%AE)
+
 ### 版本命名规则
 如 "1.1.0.d0a586a" 
 - 1.1.0 指的是原MoviePilot仓库 发布的版本号
@@ -17,7 +20,7 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
 
 ### 如何升级作者打包好的版本
 1. ~桌面图标右键-打开文件所在的位置-启动stop.bat 如安装目录在系统盘的Program Files或Program Files (x86),需要以管理员身份运行~
-2. 升级安装, 会覆盖config.py, 因此需备份配置好的config.py及category.yaml,如果category.yaml使用默认配置,无需备份category.yaml
+2. 升级安装, 会覆盖config.py(如果你使用的app.env方式, 可直接跳过该步骤), 因此需备份配置好的config.py及category.yaml,如果category.yaml使用默认配置,无需备份category.yaml
 3. 安装升级包
    
 ### 如何自己升级版本
@@ -37,7 +40,7 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
 填写形式为 r"C:\dir", 如  
  `DOWNLOAD_PATH: str = r"C:\Users\Default\Downloads"`  
  如果填写是根目录 改为  
- `DOWNLOAD_PATH: str = r"C:"` 或 `DOWNLOAD_PATH: str = r"C:\\"`
+ `DOWNLOAD_PATH: str = r"C:"`
  
  ### 关于窗口闪退问题
  找到log文件, 查看具体错误, 文件在  
@@ -60,6 +63,13 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
     高级参数栏 可填写 `-dd` 注意的是 填写-dd 插件不会测速 运行时长在2分钟左右, 如果不填写-dd 插件会测速 运行时长在10分钟左右  
     打开立即运行一次选项 并点击保存
  4. 如果提示`更新系统hosts文件失败`, 请查看`C:\WINDOWS\System32\drivers\etc` 目录下的hosts文件, 是否设置了只读权限
+
+### 关于app.env如何配置
+1. 桌面MoviePilot图标右键-打开文件所在的位置-MoviePilot文件夹-config文件夹-找到app.env
+2. 在当前目录复制一份app.env并重命名为appWindows.env
+3. 打开appWindows.env配置所取变量
+4. 不想使用appWindows.env, 删除appWindows.env即可  
+提醒: 配置appWindows.env,以后升级安装不再需要备份config.py, 推荐使用appWindows.env方式,但注意是优先级`appWindows.env > config.py`,如果配置appWindows.env相关变量 就会覆盖config.py的相关的变量
 
 
  
