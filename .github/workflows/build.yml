@@ -14,48 +14,49 @@ jobs:
       output1: ${{ steps.Make_Python_package.outputs.KEY }}
 
     steps:
+      - name: 版本对比
+        run: |
+          # 发送GET请求
+          $response = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/MoviePilot/git/refs/heads/wlj0807 | ConvertFrom-Json
+          echo $response.object.sha
+          $latest_commit_sha = $response.object.sha
+          echo $latest_commit_sha
+          echo 555
+          # 获取倒数第二次提交的hash
+          $response1 = Invoke-WebRequest -Uri "https://api.github.com/repos/developer-wlj/MoviePilot/git/commits/$latest_commit_sha" | ConvertFrom-Json
+          $newArray = [System.Collections.ArrayList]::new()
+          # 遍历数组中的每个对象
+          foreach ($item in $response1.parents) {
+            # 获取每个对象的sha属性值
+            $sha = $item.sha
+            # 将sha属性值添加到新数组中
+            $newArray.Add($sha)
+          }
+          $response = Invoke-WebRequest -Uri https://api.github.com/repos/jxxghp/MoviePilot/git/refs/heads | ConvertFrom-Json
+          $jxxghp_version=$response.object.sha
+          echo $jxxghp_version
+          if ($newArray -contains $jxxghp_version) {
+           $response2 = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/Windows-MoviePilot/releases/latest | ConvertFrom-Json
+           # 提取tag_name的值
+           $tagName = $response2.tag_name
+           echo $tagName
+           echo $jxxghp_version.Substring(0, 7)
+           if ($tagName.contains($jxxghp_version.Substring(0, 7))) {
+             Write-Output "版本相同,无需更新"
+             exit 1
+           } else {
+             Write-Output "检测到新的commit 执行重新打包"
+           }
+          } else {
+           Write-Output "developer-wlj/MoviePilot需要手动同步上游仓库"
+           exit 1
+          }
+          
       - name: Init Python 3.11.4
         uses: actions/setup-python@v4
         with:
           python-version: '3.11.4'
-      - name: 版本对比
-        run: |
-         # 发送GET请求
-         $response = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/MoviePilot/git/refs/heads/wlj0807 | ConvertFrom-Json
-         echo $response.object.sha
-         $latest_commit_sha = $response.object.sha
-         echo $latest_commit_sha
-         echo 555
-         # 获取倒数第二次提交的hash
-         $response1 = Invoke-WebRequest -Uri "https://api.github.com/repos/developer-wlj/MoviePilot/git/commits/$latest_commit_sha" | ConvertFrom-Json
-         $newArray = [System.Collections.ArrayList]::new()
-         # 遍历数组中的每个对象
-         foreach ($item in $response1.parents) {
-           # 获取每个对象的sha属性值
-           $sha = $item.sha
- 
-           # 将sha属性值添加到新数组中
-           $newArray.Add($sha)
-         }
-         $response = Invoke-WebRequest -Uri https://api.github.com/repos/jxxghp/MoviePilot/git/refs/heads | ConvertFrom-Json
-         $jxxghp_version=$response.object.sha
-         echo $jxxghp_version
-         if ($newArray -contains $jxxghp_version) {
-          $response2 = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/Windows-MoviePilot/releases/latest | ConvertFrom-Json
-          # 提取tag_name的值
-          $tagName = $response2.tag_name
-          echo $tagName
-          echo $jxxghp_version.Substring(0, 7)
-          if ($tagName.contains($jxxghp_version.Substring(0, 7))) {
-            Write-Output "版本相同,无需更新"
-            exit 1
-          } else {
-            Write-Output "检测到新的commit 执行重新打包"
-          }
-         } else {
-          Write-Output "developer-wlj/MoviePilot需要手动同步上游仓库"
-          exit 1
-         }
+      
 
       - name: 拉取exe代码
         uses: actions/checkout@v3
