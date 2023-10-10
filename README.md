@@ -66,8 +66,7 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
 ### 关于app.env如何配置
 1. 桌面MoviePilot图标右键-打开文件所在的位置-MoviePilot文件夹-config文件夹-找到app.env
 2. 在当前目录复制一份app.env并重命名为appWindows.env
-3. 打开appWindows.env配置所取变量
-4. 不想使用appWindows.env, 删除appWindows.env即可  
+3. 打开appWindows.env配置所取变量  
 提醒: 配置appWindows.env, 之后的升级安装 不会覆盖用户手动创建的文件,因此不需要备份appWindows.env文件
 
 
