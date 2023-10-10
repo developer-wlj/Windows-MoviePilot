@@ -13,20 +13,20 @@ Windows-MoviePilot内置Python3.11环境,需要注意是Python3.11不支持Win7�
 Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
 1. 用户需自己提前安装好谷歌浏览器(MoviePilot需要检测到chrome环境,chrome必须是默认路径,如果用户手动更改过,需重新安装), 官网地址: https://www.google.com/intl/zh-CN/chrome/
 2. 双击安装Windows-MoviePilot包, 完成安装
-3. (步骤3可以先跳过,看看是否能成功运行)桌面图标右键-打开文件所在的位置-MoviePilot文件夹-app文件夹-core文件夹-打开config.py文件-配置所需变量或者使用app.env方式配置所需变量
+3. (步骤3可以先跳过,看看是否能成功运行)~桌面图标右键-打开文件所在的位置-MoviePilot文件夹-app文件夹-core文件夹-打开config.py文件-配置所需变量或者使用app.env方式配置所需变量~ 详情请查看[关于app.env如何配置](https://github.com/developer-wlj/Windows-MoviePilot#%E5%85%B3%E4%BA%8Eappenv%E5%A6%82%E4%BD%95%E9%85%8D%E7%BD%AE)
 4. 双击桌面MoviePilot.exe运行
 5. 手动打开浏览器 输入 http://127.0.0.1:3000 用户名默认: admin, 密码默认: password
 
 ### 如何升级作者打包好的版本
 1. ~桌面图标右键-打开文件所在的位置-启动stop.bat 如安装目录在系统盘的Program Files或Program Files (x86),需要以管理员身份运行~
-2. 升级安装, 会覆盖config.py(如果你使用的app.env方式, 可直接跳过该步骤), 因此需备份配置好的config.py及category.yaml,如果category.yaml使用默认配置,无需备份category.yaml
+2. 升级安装, 会覆盖~config.py(如果你使用的app.env方式, 可直接跳过该步骤), 因此需备份配置好的config.py及~category.yaml,如果category.yaml使用默认配置,无需备份category.yaml
 3. 安装升级包
    
 ### 如何自己升级版本
 - MoviePilot前端文件在nginx-html-MoviePilot-Frontend下, 替换成自己打包好的文件
 - MoviePilot后端文件在project-MoviePilot目录下 使用git 或ide方式 进行代码合并
 
-### 如何配置config.py
+### ~如何配置config.py~ 已不再适用于v1.2.9及之后的版本
 - 示例请参照 [config.example.py](https://github.com/developer-wlj/Windows-MoviePilot/blob/main/config.example.py)
 - 很重要的一点! 很重要的一点!! 很重要的一点!!! 请不要删除config.py你没有使用到的变量, 删除可能无法启动服务
 - 只要填写的值不是None、布尔类型和数字类型 其他的值统统需要加""引住
@@ -68,7 +68,7 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
 2. 在当前目录复制一份app.env并重命名为appWindows.env
 3. 打开appWindows.env配置所取变量
 4. 不想使用appWindows.env, 删除appWindows.env即可  
-提醒: 配置appWindows.env,以后升级安装不再需要备份config.py, 推荐使用appWindows.env方式,但注意是优先级`appWindows.env > config.py`,如果配置appWindows.env相关变量 就会覆盖config.py的相关的变量
+提醒: 配置appWindows.env, 之后的升级安装 不会覆盖用户手动创建的文件,因此不需要备份appWindows.env文件
 
 
  
