@@ -112,9 +112,10 @@ jobs:
           Remove-Item -Path "MoviePilot-Plugins-main.zip"
           Remove-Item -Path "MoviePilot-Plugins-main" -Recurse -Force
           cd ../../config/
+          mkdir sites
           $extract_url1 = "https://raw.githubusercontent.com/jxxghp/MoviePilot-Resources/main/resources/user.sites.bin"
           Invoke-WebRequest -URI $extract_url1 -OutFile "user.sites.bin"
-          Move-Item .\user.sites.bin -Destination .\sites -Force
+          Move-Item .\user.sites.bin -Destination .\sites\user.sites.bin -Force
 
       - name: Download MoviePilot Frontend
         run: |
