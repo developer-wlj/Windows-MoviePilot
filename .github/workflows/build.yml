@@ -51,12 +51,12 @@ jobs:
            Write-Output "developer-wlj/MoviePilot需要手动同步上游仓库"
            exit 1
           }
-          
+
       - name: Init Python 3.11.4
         uses: actions/setup-python@v4
         with:
           python-version: '3.11.4'
-      
+
 
       - name: 拉取exe代码
         uses: actions/checkout@v3
@@ -102,6 +102,17 @@ jobs:
           echo "HASH_VERSION=$hash_version" >> $env:GITHUB_ENV
           echo $HASH_VERSION
           cat $env:GITHUB_ENV
+          cd app/helper
+          $extract_url = "https://raw.githubusercontent.com/jxxghp/MoviePilot-Resources/main/resources/sites.cp311-win_amd64.pyd"
+          $extract_url1 = "https://raw.githubusercontent.com/jxxghp/MoviePilot-Resources/main/resources/user.sites.bin"
+          Invoke-WebRequest -URI $extract_url -OutFile "sites.cp311-win_amd64.pyd"
+          Invoke-WebRequest -URI $extract_url1 -OutFile "user.sites.bin"
+          cd ../plugins/
+          Invoke-WebRequest -Uri "https://github.com/jxxghp/MoviePilot-Plugins/archive/refs/heads/main.zip" -OutFile "MoviePilot-Plugins-main.zip"
+          Expand-Archive -Path "MoviePilot-Plugins-main.zip" -DestinationPath "MoviePilot-Plugins-main"
+          Move-Item -Path "MoviePilot-Plugins-main/MoviePilot-Plugins-main/plugins/*" -Destination . -Force
+          Remove-Item -Path "MoviePilot-Plugins-main.zip"
+          Remove-Item -Path "MoviePilot-Plugins-main" -Recurse -Force
 
       - name: Download MoviePilot Frontend
         run: |
