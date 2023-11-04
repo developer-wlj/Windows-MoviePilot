@@ -27,7 +27,7 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
  ### 关于登录页面提示502问题
 可以肯定的是后端启动失败了, 多数原因 appWindows.env配置错误  
 如果启动成功, 托盘栏上会有一个MoviePilot图标, 没有托盘图标就代表启动失败  
-手动cmd方式启动后端 详情看上述 [关于win托盘图标自动退出问题](https://github.com/developer-wlj/Windows-MoviePilot/edit/main/README.md#%E5%85%B3%E4%BA%8Ewin%E6%89%98%E7%9B%98%E5%9B%BE%E6%A0%87%E8%87%AA%E5%8A%A8%E9%80%80%E5%87%BA%E9%97%AE%E9%A2%98)
+手动cmd方式启动后端 详情看上述 [关于win托盘图标自动退出问题](https://github.com/developer-wlj/Windows-MoviePilot#%E5%85%B3%E4%BA%8Ewin%E6%89%98%E7%9B%98%E5%9B%BE%E6%A0%87%E8%87%AA%E5%8A%A8%E9%80%80%E5%87%BA%E9%97%AE%E9%A2%98)
 
  ### 关于如何使用CF IP优选插件问题
  1. 安装自定义Hosts插件和Cloudflare IP优选插件
