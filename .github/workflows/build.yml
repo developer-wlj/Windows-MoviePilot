@@ -113,21 +113,21 @@ jobs:
           Move-Item -Path "MoviePilot-Plugins-main/MoviePilot-Plugins-main/plugins/*" -Destination . -Force
           Remove-Item -Path "MoviePilot-Plugins-main.zip"
           Remove-Item -Path "MoviePilot-Plugins-main" -Recurse -Force
-          Invoke-WebRequest -Uri "https://github.com/thsrite/MoviePilot-Plugins/archive/refs/heads/main.zip" -OutFile "MoviePilot-Plugins-main.zip"
-          Expand-Archive -Path "MoviePilot-Plugins-main.zip" -DestinationPath "MoviePilot-Plugins-main"
-          Move-Item -Path "MoviePilot-Plugins-main/MoviePilot-Plugins-main/plugins/*" -Destination . -Force
-          # 遍历当前目录及子目录下的所有文件
-          $files = Get-ChildItem -Path . -Recurse
-          # 使用过滤器找出所有的 requirement.txt 文件
-          $requirementFiles = $files | Where-Object {$_.Name -eq 'requirement.txt'}
-          foreach ($file in $requirementFiles) {
-            # 生成路径
-            $relativePath = $file.Directory.FullName+"\"+"requirement.txt"
-            echo $relativePath
-            pip install -r "$relativePath"
-          }
-          Remove-Item -Path "MoviePilot-Plugins-main.zip"
-          Remove-Item -Path "MoviePilot-Plugins-main" -Recurse -Force
+          # Invoke-WebRequest -Uri "https://github.com/thsrite/MoviePilot-Plugin-Market/archive/refs/heads/main.zip" -OutFile "MoviePilot-Plugins-main.zip"
+          # Expand-Archive -Path "MoviePilot-Plugins-main.zip" -DestinationPath "MoviePilot-Plugins-main"
+          # Move-Item -Path "MoviePilot-Plugins-main/MoviePilot-Plugin-Market-main/plugins/*" -Destination . -Force
+          # # 遍历当前目录及子目录下的所有文件
+          # $files = Get-ChildItem -Path . -Recurse
+          # # 使用过滤器找出所有的 requirement.txt 文件
+          # $requirementFiles = $files | Where-Object {$_.Name -eq 'requirement.txt'}
+          # foreach ($file in $requirementFiles) {
+          #   # 生成路径
+          #   $relativePath = $file.Directory.FullName+"\"+"requirement.txt"
+          #   echo $relativePath
+          #   pip install -r "$relativePath"
+          # }
+          # Remove-Item -Path "MoviePilot-Plugins-main.zip"
+          # Remove-Item -Path "MoviePilot-Plugins-main" -Recurse -Force
 
       - name: Download MoviePilot Frontend
         run: |
