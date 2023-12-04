@@ -2,7 +2,7 @@
 - 基于批处理转exe实现
 
 # Windows-MoviePilot个别版本无法运行说明
-- 如果你是从1.4.8-1.1323cd5之前版本升级过来的,请删除project目录-MoviePilot目录-app目录-db目录-models目录下-plugin.py文件, 否则无法运行服务
+- 如果你是从1.4.8-1之前版本升级过来的,请删除project目录-MoviePilot目录-app目录-db目录-models目录下-plugin.py文件, 否则无法运行服务
 
 ### 版本命名规则
 如 "1.1.0.d0a586a" 
