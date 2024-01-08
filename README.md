@@ -1,8 +1,14 @@
-# Windows-MoviePilot
+# Windows-MoviePilot与原版区别
 - 基于批处理转exe实现
+- 认证变量可以通过配置appWindows.env文件 进行认证
+- 启动速度更快 (没有数据解压的过程 )
+- 支持配置远程插件仓库, 在线安装插件 注意的是 配置第三方插件仓库后 还需要配置 `IS_ENABLED_REMOTE_REPO=true` 才能使用
+- 支持在线更新认证和站点文件, 注意的是 认证文件更新成功 需要手动重启Windows-MoviePilot才能生效
+- MP前端面板 内存展示 改为MP实际占用的内存 不是整机占用
+- 停机速度更快 
 
-### Windows-MoviePilot-V1.4.8-1 版本无法运行说明
-- 如果你是从1.4.8-1之前版本升级到1.4.8-1,请删除project目录-MoviePilot目录-app目录-db目录-models目录下-plugin.py文件, 否则无法运行服务
+### Windows-MoviePilot-V1.4.8-1及之后 版本无法运行说明
+- 如果你是从1.4.8-1之前版本升级到>=1.4.8-1,请删除project目录-MoviePilot目录-app目录-db目录-models目录下-plugin.py文件, 否则无法运行服务
 - 新安装用户 不受影响
 
 ### 版本命名规则
