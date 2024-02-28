@@ -1,14 +1,3 @@
 .idea/
-*.c
 MoviePilot/
-test.py
-app/helper/sites.py
-app/helper/*.so
-app/helper/*.pyd
-app/helper/*.bin
-app/plugins/**
-!app/plugins/__init__.py
-config/user.db
-config/sites/**
-*.pyc
-*.log
+/Nginx1.15.11/html/MoviePilot-Frontend/
