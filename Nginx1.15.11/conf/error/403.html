@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>403 错误 - phpstudy</title>
+  <meta name="keywords" content="">
+  <meta name="description" content="">
+  <meta name="renderer" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black"> 
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="format-detection" content="telephone=no">
+  <meta HTTP-EQUIV="pragma" CONTENT="no-cache"> 
+  <meta HTTP-EQUIV="Cache-Control" CONTENT="no-store, must-revalidate"> 
+  <meta HTTP-EQUIV="expires" CONTENT="Wed, 26 Feb 1997 08:21:57 GMT"> 
+  <meta HTTP-EQUIV="expires" CONTENT="0">
+  <style>
+    body{
+      font: 16px arial,'Microsoft Yahei','Hiragino Sans GB',sans-serif;
+    }
+    h1{
+      margin: 0;
+      color:#3a87ad;
+      font-size: 26px;
+    }
+    .content{
+      width: 45%;
+      margin: 0 auto;
+     
+    }
+    .content >div{
+      margin-top: 200px;
+      padding: 20px;
+      background: #d9edf7;  
+      border-radius: 12px;
+    }
+    .content dl{
+      color: #2d6a88;
+      line-height: 40px;
+    } 
+    .content div div {
+      padding-bottom: 20px;
+      text-align:center;
+    }
+  </style>
+</head>
+<body>
+  <div class="content">
+      <div>
+           <h1>403 - Forbidden 禁止访问: 访问被拒绝</h1>
+        <dl>
+          <dt>错误说明：禁止访问，服务器拒绝访问</dt>
+          <dt>原因1：未找到默认的索引文件</dt>
+		  <dd>解决办法：</dd>
+          <dd>IIS中【启用默认内容文档】选项中将默认打开文档修改为程序首页文件格式，如：index.html或者index.php</dd>
+          <dt>原因2：文件夹安全权限导致</dt>
+		  <dd>解决办法：</dd>
+          <dd>程序文件-右击-属性-安全-Users-修改为读取和执行权限</dd>
+        </dl>
+        <div>使用手册，视频教程，BUG反馈，官网地址： <a href="https://www.xp.cn"  target="_blank">www.xp.cn</a> </div>
+    
+      </div>
+    </div> 
+</body>
+</html>

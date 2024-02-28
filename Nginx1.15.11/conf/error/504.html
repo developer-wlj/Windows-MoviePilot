@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>504 错误 - phpstudy</title>
+  <meta name="keywords" content="">
+  <meta name="description" content="">
+  <meta name="renderer" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black"> 
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="format-detection" content="telephone=no">
+  <meta HTTP-EQUIV="pragma" CONTENT="no-cache"> 
+  <meta HTTP-EQUIV="Cache-Control" CONTENT="no-store, must-revalidate"> 
+  <meta HTTP-EQUIV="expires" CONTENT="Wed, 26 Feb 1997 08:21:57 GMT"> 
+  <meta HTTP-EQUIV="expires" CONTENT="0">
+  <style>
+    body{
+      font: 16px arial,'Microsoft Yahei','Hiragino Sans GB',sans-serif;
+    }
+    h1{
+      margin: 0;
+      color:#3a87ad;
+      font-size: 26px;
+    }
+    .content{
+      width: 45%;
+      margin: 0 auto;
+     
+    }
+    .content >div{
+      margin-top: 50px;
+      padding: 20px;
+      background: #d9edf7;  
+      border-radius: 12px;
+    }
+    .content dl{
+      color: #2d6a88;
+      line-height: 40px;
+    } 
+    .content div div {
+      padding-bottom: 20px;
+      text-align:center;
+    }
+  </style>
+</head>
+<body>
+  <div class="content">
+      <div>
+           <h1>HTTP 504 - Gateway Timeout 网关超时</h1>
+        <dl>
+          <dt>错误说明：网关超时，服务器响应时间，达到超出设定的范围 </dt>
+          <dt>原因1：后端电脑之间 IP 通讯缓慢而产生</dt>
+		  <dd>解决办法：</dd>
+          <dd>如果您的 Web 服务器由某一网站托管， 只有负责那个网站设置的人员才能解决这个问题。</dd>
+          <dt>原因2：由于nginx默认的fastcgi进程响应的缓冲区太小造成的错误</dt>
+		  <dd>解决办法：</dd>
+          <dd>一般默认的fastcgi进程响应的缓冲区是8K，这时可以设置大一点，在nginx.conf里，加入：fastcgi_buffers 8 128k这表示设置fastcgi缓冲区为8块128k大小的空间。当然如果在进行某一项即时的操作, 可能需要nginx的超时参数调大点, 例如设置成60秒:send_timeout 60;经过这两个参数的调整，一般不会再提示“504 Gateway Time-out”错误，问题基本解决。</dd>
+		  <dt>原因3：PHP环境的配置问题</dt>
+		  <dd>解决办法：</dd>
+          <dd>更改php-fpm的几处配置： 把max_children由之前的10改为现在的30，这样就可以保证有充足的php-cgi进程可以被使用； 把request_terminate_timeout由之前的0s改为60s，这样php-cgi进程 处理脚本的超时时间就是60秒，可以防止进程都被挂起，提高利用效率。 接着再更改nginx的几个配置项，减少FastCGI的请求次数，尽量维持buffers不变： fastcgi_buffers由 4 64k 改为 2 256k； fastcgi_buffer_size 由 64k 改为 128K； fastcgi_busy_buffers_size 由 128K 改为 256K； fastcgi_temp_file_write_size 由 128K 改为 256K。 重新加载php-fpm和nginx的配置，再次测试，如果没有出现“504 Gateway Time-out”错误，问题解决。</dd>
+        </dl>
+        <div>使用手册，视频教程，BUG反馈，官网地址： <a href="https://www.xp.cn"  target="_blank">www.xp.cn</a> </div>
+    
+      </div>
+    </div> 
+</body>
+</html>

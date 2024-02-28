@@ -1,0 +1,524 @@
+Metadata-Version: 2.1
+Name: cacheout
+Version: 0.14.1
+Summary: A caching library for Python
+Home-page: https://github.com/dgilland/cacheout
+Author: Derrick Gilland
+Author-email: dgilland@gmail.com
+License: MIT License
+Keywords: cacheout cache caching memoize memoization fifo lifo lfu lru mru
+Classifier: Development Status :: 4 - Beta
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Topic :: Database
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Utilities
+Requires-Python: >=3.7
+License-File: LICENSE.rst
+License-File: AUTHORS.rst
+Provides-Extra: dev
+Requires-Dist: black ; extra == 'dev'
+Requires-Dist: build ; extra == 'dev'
+Requires-Dist: coverage ; extra == 'dev'
+Requires-Dist: docformatter ; extra == 'dev'
+Requires-Dist: flake8 ; extra == 'dev'
+Requires-Dist: flake8-black ; extra == 'dev'
+Requires-Dist: flake8-bugbear ; extra == 'dev'
+Requires-Dist: flake8-isort ; extra == 'dev'
+Requires-Dist: invoke ; extra == 'dev'
+Requires-Dist: isort ; extra == 'dev'
+Requires-Dist: mypy ; extra == 'dev'
+Requires-Dist: pylint ; extra == 'dev'
+Requires-Dist: pytest ; extra == 'dev'
+Requires-Dist: pytest-asyncio ; extra == 'dev'
+Requires-Dist: pytest-cov ; extra == 'dev'
+Requires-Dist: Sphinx ; extra == 'dev'
+Requires-Dist: sphinx-autodoc-typehints ; extra == 'dev'
+Requires-Dist: sphinx-rtd-theme ; extra == 'dev'
+Requires-Dist: tox ; extra == 'dev'
+Requires-Dist: twine ; extra == 'dev'
+Requires-Dist: wheel ; extra == 'dev'
+
+cacheout
+********
+
+|version| |build| |coveralls| |license|
+
+
+A caching library for Python.
+
+
+Links
+=====
+
+- Project: https://github.com/dgilland/cacheout
+- Documentation: https://cacheout.readthedocs.io
+- PyPI: https://pypi.python.org/pypi/cacheout/
+- Github Actions: https://github.com/dgilland/cacheout/actions
+
+
+Features
+========
+
+- In-memory caching using dictionary backend
+- Cache manager for easily accessing multiple cache objects
+- Reconfigurable cache settings for runtime setup when using module-level cache objects
+- Maximum cache size enforcement
+- Default cache TTL (time-to-live) as well as custom TTLs per cache entry
+- Bulk set, get, and delete operations
+- Bulk get and delete operations filtered by string, regex, or function
+- Memoization decorators
+- Thread safe
+- Multiple cache implementations:
+
+  - FIFO (First In, First Out)
+  - LIFO (Last In, First Out)
+  - LRU (Least Recently Used)
+  - MRU (Most Recently Used)
+  - LFU (Least Frequently Used)
+  - RR (Random Replacement)
+
+
+Roadmap
+=======
+
+- Layered caching (multi-level caching)
+- Cache event listener support (e.g. on-get, on-set, on-delete)
+- Cache statistics (e.g. cache hits/misses, cache frequency, etc)
+
+
+Requirements
+============
+
+- Python >= 3.7
+
+
+Quickstart
+==========
+
+Install using pip:
+
+
+::
+
+    pip install cacheout
+
+
+Let's start with some basic caching by creating a cache object:
+
+.. code-block:: python
+
+    from cacheout import Cache
+
+    cache = Cache()
+
+
+By default the ``cache`` object will have a maximum size of ``256``, default TTL (time-to-live) expiration turned off, TTL timer that uses ``time.time`` (meaning TTL is in seconds), and the default for missing keys as ``None``. These values can be set with:
+
+.. code-block:: python
+
+    cache = Cache(maxsize=256, ttl=0, timer=time.time, default=None)  # defaults
+
+
+Set a cache key using ``cache.set()``:
+
+.. code-block:: python
+
+    cache.set(1, 'foobar')
+
+
+Get the value of a cache key with ``cache.get()``:
+
+.. code-block:: python
+
+    assert cache.get(1) == 'foobar'
+
+
+Get a default value when cache key isn't set:
+
+.. code-block:: python
+
+    assert cache.get(2) is None
+    assert cache.get(2, default=False) is False
+    assert 2 not in cache
+
+
+Provide cache values using a default callable:
+
+.. code-block:: python
+
+    assert 2 not in cache
+    assert cache.get(2, default=lambda key: key) == 2
+    assert cache.get(2) == 2
+    assert 2 in cache
+
+
+Provide a global default:
+
+.. code-block:: python
+
+    cache2 = Cache(default=True)
+    assert cache2.get('missing') is True
+    assert 'missing' not in cache2
+
+    cache3 = Cache(default=lambda key: key)
+    assert cache3.get('missing') == 'missing'
+    assert 'missing' in cache3
+
+
+Set the TTL (time-to-live) expiration per entry (default TTL units are in seconds when ``Cache.timer`` is set to the default ``time.time``; otherwise, the units are determined by the custom timer function):
+
+.. code-block:: python
+
+    cache.set(3, {'data': {}}, ttl=1)
+    assert cache.get(3) == {'data': {}}
+    time.sleep(1)
+    assert cache.get(3) is None
+
+
+Memoize a function where cache keys are generated from the called function parameters:
+
+.. code-block:: python
+
+    @cache.memoize()
+    def func(a, b):
+        pass
+
+
+Provide a TTL for the memoized function and incorporate argument types into generated cache keys:
+
+.. code-block:: python
+
+    @cache.memoize(ttl=5, typed=True)
+    def func(a, b):
+        pass
+
+    # func(1, 2) has different cache key than func(1.0, 2.0), whereas,
+    # with "typed=False" (the default), they would have the same key
+
+
+Access the original memoized function:
+
+.. code-block:: python
+
+    @cache.memoize()
+    def func(a, b):
+        pass
+
+    func.uncached(1, 2)
+
+
+Get a copy of the entire cache with ``cache.copy()``:
+
+.. code-block:: python
+
+    assert cache.copy() == {1: 'foobar', 2: ('foo', 'bar', 'baz')}
+
+
+Delete a cache key with ``cache.delete()``:
+
+.. code-block:: python
+
+    cache.delete(1)
+    assert cache.get(1) is None
+
+
+Clear the entire cache with ``cache.clear()``:
+
+.. code-block:: python
+
+    cache.clear()
+    assert len(cache) == 0
+
+
+Perform bulk operations with ``cache.set_many()``, ``cache.get_many()``, and ``cache.delete_many()``:
+
+.. code-block:: python
+
+    cache.set_many({'a': 1, 'b': 2, 'c': 3})
+    assert cache.get_many(['a', 'b', 'c']) == {'a': 1, 'b': 2, 'c': 3}
+    cache.delete_many(['a', 'b', 'c'])
+    assert cache.count() == 0
+
+
+Use complex filtering in ``cache.get_many()`` and ``cache.delete_many()``:
+
+.. code-block:: python
+
+    import re
+    cache.set_many({'a_1': 1, 'a_2': 2, '123': 3, 'b': 4})
+
+    cache.get_many('a_*') == {'a_1': 1, 'a_2': 2}
+    cache.get_many(re.compile(r'\d')) == {'123': 3}
+    cache.get_many(lambda key: '2' in key) == {'a_2': 2, '123': 3}
+
+    cache.delete_many('a_*')
+    assert dict(cache.items()) == {'123': 3, 'b': 4}
+
+
+Reconfigure the cache object after creation with ``cache.configure()``:
+
+.. code-block:: python
+
+    cache.configure(maxsize=1000, ttl=5 * 60)
+
+
+Get keys, values, and items from the cache with ``cache.keys()``, ``cache.values()``, and ``cache.items()``:
+
+.. code-block:: python
+
+    cache.set_many({'a': 1, 'b': 2, 'c': 3})
+    assert list(cache.keys()) == ['a', 'b', 'c']
+    assert list(cache.values()) == [1, 2, 3]
+    assert list(cache.items()) == [('a', 1), ('b', 2), ('c', 3)]
+
+
+Iterate over cache keys:
+
+.. code-block:: python
+
+    for key in cache:
+        print(key, cache.get(key))
+        # 'a' 1
+        # 'b' 2
+        # 'c' 3
+
+
+Check if key exists with ``cache.has()`` and ``key in cache``:
+
+.. code-block:: python
+
+    assert cache.has('a')
+    assert 'a' in cache
+
+
+Manage multiple caches using ``CacheManager``:
+
+.. code-block:: python
+
+    from cacheout import CacheManager
+
+    cacheman = CacheManager({'a': {'maxsize': 100},
+                             'b': {'maxsize': 200, 'ttl': 900},
+                             'c': {})
+
+    cacheman['a'].set('key1', 'value1')
+    value = cacheman['a'].get('key')
+
+    cacheman['b'].set('key2', 'value2')
+    assert cacheman['b'].maxsize == 200
+    assert cacheman['b'].ttl == 900
+
+    cacheman['c'].set('key3', 'value3')
+
+    cacheman.clear_all()
+    for name, cache in cacheman:
+        assert name in cacheman
+        assert len(cache) == 0
+
+
+For more details, see the full documentation at https://cacheout.readthedocs.io.
+
+
+
+.. |version| image:: https://img.shields.io/pypi/v/cacheout.svg?style=flat-square
+    :target: https://pypi.python.org/pypi/cacheout/
+
+.. |build| image:: https://img.shields.io/github/workflow/status/dgilland/cacheout/Main/master?style=flat-square
+    :target: https://github.com/dgilland/cacheout/actions
+
+.. |coveralls| image:: https://img.shields.io/coveralls/dgilland/cacheout/master.svg?style=flat-square
+    :target: https://coveralls.io/r/dgilland/cacheout
+
+.. |license| image:: https://img.shields.io/pypi/l/cacheout.svg?style=flat-square
+    :target: https://pypi.python.org/pypi/cacheout/
+
+Changelog
+=========
+
+
+v0.14.1 (2022-08-16)
+--------------------
+
+- Set minimum Python version to 3.7 in setup.cfg.
+
+
+v0.14.0 (2022-08-16)
+--------------------
+
+- Add support for Python 3.10.
+- Drop support for Python 3.6. Minimum supported version is 3.7.
+- Clarify docs around TTL to make it explicit what time units it uses by default.
+
+
+v0.13.1 (2021-04-28)
+--------------------
+
+- Minor optimization in ``Cache.get_many|delete_many``.
+
+
+v0.13.0 (2021-04-27)
+--------------------
+
+- Add ``cache_key`` attribute to memoized functions that can be used to generate the cache key used for a given set of function arguments. Thanks johnbergvall_!
+- Fix bug in ``Cache.full`` that would result in an exception if cache created with ``maxsize=None`` like ``Cache(maxsize=None)``. Thanks AllinolCP_!
+- Fix bug in ``Cache.get_many`` that resulted in ``RuntimeError: OrderedDict mutated during iteration`` when cache keys expire during the ``get_many`` call.
+- Remove ``default`` argument from ``Cache.get_many``. A default value on missing cache key was only ever returned if a list of keys was passed in and those keys happened to expire during the ``get_many`` call. **breaking change**
+
+
+v0.12.1 (2021-04-19)
+--------------------
+
+- Fix regression in ``0.12.0`` that resulted in missing docstrings for some methods of ``LFUCache`` and ``LRUCache``.
+
+
+v0.12.0 (2021-04-19)
+--------------------
+
+- Fix bug in ``Cache.__contains__`` where it would return ``True`` for an expired key.
+- Add type annotations.
+- Add official support for Python 3.8 and 3.9.
+- Drop support for Python 3.4 and 3.5.
+
+
+v0.11.2 (2019-09-30)
+--------------------
+
+- Fix bug in ``LFUCache`` that would result cache growing beyond ``maxsize`` limit.
+
+
+v0.11.1 (2019-01-09)
+--------------------
+
+- Fix issue with asyncio support in memoization decorators that caused a ``RuntimeError: await wasn't used with future`` when certain types of async functions were used inside the memoized function.
+
+
+v0.11.0 (2018-10-19)
+--------------------
+
+- Add asyncio support to memoization decorators so they can decorate coroutines.
+
+
+v0.10.3 (2018-08-01)
+--------------------
+
+- Expose ``typed`` argument of underlying ``*Cache.memoize()`` in ``memoize()`` and ``*_memoize()`` decorators.
+
+
+v0.10.2 (2018-07-31)
+--------------------
+
+- Fix bug in ``LRUCache.get()`` where supplying a ``default`` value would result in a ``KeyError``.
+
+
+v0.10.1 (2018-07-15)
+--------------------
+
+- Support Python 3.7.
+
+
+v0.10.0 (2018-04-03)
+--------------------
+
+- Modify behavior of ``default`` argument to ``Cache.get()`` so that if ``default`` is a callable and the cache key is missing, then it will be called and its return value will be used as the value for cache key and subsequently be set as the value for the key in the cache. (**breaking change**)
+- Add ``default`` argument to ``Cache()`` that can be used to override the value for ``default`` in ``Cache.get()``.
+
+
+v0.9.0 (2018-03-31)
+-------------------
+
+- Merge functionality of ``Cache.get_many_by()`` into ``Cache.get_many()`` and remove ``Cache.get_many_by()``. (**breaking change**).
+- Merge functionality of ``Cache.delete_many_by()`` into ``Cache.delete_many()`` and remove ``Cache.delete_many_by()``. (**breaking change**).
+
+
+v0.8.0 (2018-03-30)
+-------------------
+
+- Add ``Cache.get_many_by()``.
+- Add ``Cache.delete_many_by()``.
+- Make ``Cache.keys()`` and ``Cache.values()`` return dictionary view objects instead of yielding items. (**breaking change**)
+
+
+v0.7.0 (2018-02-22)
+-------------------
+
+- Changed default cache ``maxsize`` from ``300`` to ``256``. (**breaking change**)
+- Add ``Cache.memoize()`` decorator.
+- Add standalone memoization decorators:
+
+  - ``memoize``
+  - ``fifo_memoize``
+  - ``lfu_memoize``
+  - ``lifo_memoize``
+  - ``lru_memoize``
+  - ``mru_memoize``
+  - ``rr_memoize``
+
+
+v0.6.0 (2018-02-05)
+-------------------
+
+- Add ``LIFOCache``
+- Add ``FIFOCache`` as an alias of ``Cache``.
+
+
+v0.5.0 (2018-02-04)
+-------------------
+
+- Add ``LFUCache``
+- Delete expired items before popping an item in ``Cache.popitem()``.
+
+
+v0.4.0 (2018-02-02)
+-------------------
+
+- Add ``MRUCache``
+- Add ``RRCache``
+- Add ``Cache.popitem()``.
+- Rename ``Cache.expirations()`` to ``Cache.expire_times()``. (**breaking change**)
+- Rename ``Cache.count()`` to ``Cache.size()``. (**breaking change**)
+- Remove ``minimum`` arguement from ``Cache.evict()``. (**breaking change**)
+
+
+v0.3.0 (2018-01-31)
+-------------------
+
+- Add ``LRUCache``.
+- Add ``CacheManager.__repr__()``.
+- Make threading lock usage in ``Cache`` more fine-grained and eliminate redundant locking.
+- Fix missing thread-safety in ``Cache.__len__()`` and ``Cache.__contains__()``.
+
+
+v0.2.0 (2018-01-30)
+-------------------
+
+- Rename ``Cache.setup()`` to ``Cache.configure()``. (**breaking change**)
+- Add ``CacheManager`` class.
+
+
+v0.1.0 (2018-01-28)
+-------------------
+
+- Add ``Cache`` class.
+
+
+.. _johnbergvall: https://github.com/johnbergvall
+.. _AllinolCP: https://github.com/AllinolCP
+
+MIT License
+
+Copyright (c) 2020 Derrick Gilland
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
