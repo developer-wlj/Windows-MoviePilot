@@ -2,7 +2,7 @@
 
 
  **基于MoviePilot原版，优化安装流程并整合为一体包，无需安装其他任何文件即可运行MoviePilot。**  
- 前往 [Releases](https://github.com/developer-wlj/Windows-MoviePilot/releases/latest "Releases") 下载
+ 点击 [链接](https://github.com/developer-wlj/Windows-MoviePilot/archive/refs/heads/Windows-MoviePilot-Git.zip) 下载 
  - 基于99.99%的原版(main.py文件删除2行不适用windows下的代码)
  - 优化/可靠
  - 一键安装(基于批处理)/自动升级(基于git)/启动
