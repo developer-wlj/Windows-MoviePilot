@@ -123,6 +123,7 @@ jobs:
           # }
           # Remove-Item -Path "MoviePilot-Plugins-main.zip"
           # Remove-Item -Path "MoviePilot-Plugins-main" -Recurse -Force
+          Get-ChildItem -Path . -Recurse -Filter "requirements.txt" | ForEach-Object { pip install -r $_ }
 
       - name: Download MoviePilot Frontend
         run: |
