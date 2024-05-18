@@ -42,16 +42,14 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 const kNoXServerRunningError = 'Looks like you launched a headed browser without having a XServer running.\n' + 'Set either \'headless: true\' or use \'xvfb-run <your-playwright-app>\' before running Playwright.\n\n<3 Playwright Team';
 exports.kNoXServerRunningError = kNoXServerRunningError;
 class BrowserType extends _instrumentation.SdkObject {
-  constructor(browserName, playwrightOptions) {
-    super(playwrightOptions.rootSdkObject, 'browser-type');
+  constructor(parent, browserName) {
+    super(parent, 'browser-type');
     this._name = void 0;
-    this._playwrightOptions = void 0;
     this.attribution.browserType = this;
-    this._playwrightOptions = playwrightOptions;
     this._name = browserName;
   }
   executablePath() {
-    return _registry.registry.findExecutable(this._name).executablePath(this._playwrightOptions.sdkLanguage) || '';
+    return _registry.registry.findExecutable(this._name).executablePath(this.attribution.playwright.options.sdkLanguage) || '';
   }
   name() {
     return this._name;
@@ -105,7 +103,6 @@ class BrowserType extends _instrumentation.SdkObject {
     } = await this._launchProcess(progress, options, !!persistent, browserLogsCollector, maybeUserDataDir);
     if (options.__testHookBeforeCreateBrowser) await options.__testHookBeforeCreateBrowser();
     const browserOptions = {
-      ...this._playwrightOptions,
       name: this._name,
       isChromium: this._name === 'chromium',
       channel: options.channel,
@@ -143,13 +140,8 @@ class BrowserType extends _instrumentation.SdkObject {
       handleSIGHUP = true
     } = options;
     const env = options.env ? (0, _processLauncher.envArrayToObject)(options.env) : process.env;
+    await this._createArtifactDirs(options);
     const tempDirectories = [];
-    if (options.downloadsPath) await _fs.default.promises.mkdir(options.downloadsPath, {
-      recursive: true
-    });
-    if (options.tracesDir) await _fs.default.promises.mkdir(options.tracesDir, {
-      recursive: true
-    });
     const artifactsDir = await _fs.default.promises.mkdtemp(_path.default.join(os.tmpdir(), 'playwright-artifacts-'));
     tempDirectories.push(artifactsDir);
     if (userDataDir) {
@@ -171,8 +163,8 @@ class BrowserType extends _instrumentation.SdkObject {
     } else {
       const registryExecutable = _registry.registry.findExecutable(options.channel || this._name);
       if (!registryExecutable || registryExecutable.browserName !== this._name) throw new Error(`Unsupported ${this._name} channel "${options.channel}"`);
-      executable = registryExecutable.executablePathOrDie(this._playwrightOptions.sdkLanguage);
-      await registryExecutable.validateHostRequirements(this._playwrightOptions.sdkLanguage);
+      executable = registryExecutable.executablePathOrDie(this.attribution.playwright.options.sdkLanguage);
+      await registryExecutable.validateHostRequirements(this.attribution.playwright.options.sdkLanguage);
     }
     const waitForWSEndpoint = options.useWebSocket || (_options$args = options.args) !== null && _options$args !== void 0 && _options$args.some(a => a.startsWith('--remote-debugging-port')) ? new _manualPromise.ManualPromise() : undefined;
     const waitForJuggler = this._name === 'firefox' ? new _manualPromise.ManualPromise() : undefined;
@@ -247,6 +239,14 @@ class BrowserType extends _instrumentation.SdkObject {
       transport
     };
   }
+  async _createArtifactDirs(options) {
+    if (options.downloadsPath) await _fs.default.promises.mkdir(options.downloadsPath, {
+      recursive: true
+    });
+    if (options.tracesDir) await _fs.default.promises.mkdir(options.tracesDir, {
+      recursive: true
+    });
+  }
   async connectOverCDP(metadata, endpointURL, options, timeout) {
     throw new Error('CDP connections are only supported by Chromium');
   }
@@ -264,8 +264,8 @@ class BrowserType extends _instrumentation.SdkObject {
     } = options;
     if ((0, _utils.debugMode)()) headless = false;
     if (downloadsPath && !_path.default.isAbsolute(downloadsPath)) downloadsPath = _path.default.join(process.cwd(), downloadsPath);
-    if (this._playwrightOptions.socksProxyPort) proxy = {
-      server: `socks5://127.0.0.1:${this._playwrightOptions.socksProxyPort}`
+    if (this.attribution.playwright.options.socksProxyPort) proxy = {
+      server: `socks5://127.0.0.1:${this.attribution.playwright.options.socksProxyPort}`
     };
     return {
       ...options,

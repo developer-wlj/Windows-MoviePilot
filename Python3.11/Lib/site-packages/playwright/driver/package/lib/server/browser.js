@@ -26,8 +26,8 @@ var _artifact = require("./artifact");
  */
 
 class Browser extends _instrumentation.SdkObject {
-  constructor(options) {
-    super(options.rootSdkObject, 'browser');
+  constructor(parent, options) {
+    super(parent, 'browser');
     this.options = void 0;
     this._downloads = new Map();
     this._defaultContext = null;

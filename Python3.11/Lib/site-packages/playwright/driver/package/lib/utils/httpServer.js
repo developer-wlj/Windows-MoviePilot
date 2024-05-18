@@ -4,15 +4,13 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.HttpServer = void 0;
-var http = _interopRequireWildcard(require("http"));
 var _fs = _interopRequireDefault(require("fs"));
 var _path = _interopRequireDefault(require("path"));
 var _utilsBundle = require("../utilsBundle");
-var _ = require("./");
+var _debug = require("./debug");
+var _network = require("./network");
 var _manualPromise = require("./manualPromise");
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-function _getRequireWildcardCache(nodeInterop) { if (typeof WeakMap !== "function") return null; var cacheBabelInterop = new WeakMap(); var cacheNodeInterop = new WeakMap(); return (_getRequireWildcardCache = function (nodeInterop) { return nodeInterop ? cacheNodeInterop : cacheBabelInterop; })(nodeInterop); }
-function _interopRequireWildcard(obj, nodeInterop) { if (!nodeInterop && obj && obj.__esModule) { return obj; } if (obj === null || typeof obj !== "object" && typeof obj !== "function") { return { default: obj }; } var cache = _getRequireWildcardCache(nodeInterop); if (cache && cache.has(obj)) { return cache.get(obj); } var newObj = {}; var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor; for (var key in obj) { if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) { var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null; if (desc && (desc.get || desc.set)) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } newObj.default = obj; if (cache) { cache.set(obj, newObj); } return newObj; }
 /**
  * Copyright (c) Microsoft Corporation.
  *
@@ -36,14 +34,11 @@ class HttpServer {
     this._port = 0;
     this._started = false;
     this._routes = [];
-    this._activeSockets = new Set();
     this._urlPrefix = address;
-    this._server = http.createServer(this._onRequest.bind(this));
+    this._server = (0, _network.createHttpServer)(this._onRequest.bind(this));
   }
-  createWebSocketServer() {
-    return new _utilsBundle.wsServer({
-      server: this._server
-    });
+  server() {
+    return this._server;
   }
   routePrefix(prefix, handler) {
     this._routes.push({
@@ -72,12 +67,8 @@ class HttpServer {
     }
   }
   async start(options = {}) {
-    (0, _.assert)(!this._started, 'server already started');
+    (0, _debug.assert)(!this._started, 'server already started');
     this._started = true;
-    this._server.on('connection', socket => {
-      this._activeSockets.add(socket);
-      socket.once('close', () => this._activeSockets.delete(socket));
-    });
     const host = options.host || 'localhost';
     if (options.preferredPort) {
       try {
@@ -90,7 +81,7 @@ class HttpServer {
       await this._tryStart(options.port, host);
     }
     const address = this._server.address();
-    (0, _.assert)(address, 'Could not bind server socket');
+    (0, _debug.assert)(address, 'Could not bind server socket');
     if (!this._urlPrefix) {
       if (typeof address === 'string') {
         this._urlPrefix = address;
@@ -102,7 +93,6 @@ class HttpServer {
     return this._urlPrefix;
   }
   async stop() {
-    for (const socket of this._activeSockets) socket.destroy();
     await new Promise(cb => this._server.close(cb));
   }
   urlPrefix() {

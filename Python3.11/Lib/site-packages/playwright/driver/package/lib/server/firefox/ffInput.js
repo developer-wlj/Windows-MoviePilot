@@ -121,7 +121,9 @@ class RawMouseImpl {
   }
   async wheel(x, y, buttons, modifiers, deltaX, deltaY) {
     // Wheel events hit the compositor first, so wait one frame for it to be synced.
-    await this._page.mainFrame().evaluateExpression(`new Promise(requestAnimationFrame)`, false, false, 'utility');
+    await this._page.mainFrame().evaluateExpression(`new Promise(requestAnimationFrame)`, {
+      world: 'utility'
+    });
     await this._client.send('Page.dispatchWheelEvent', {
       deltaX,
       deltaY,

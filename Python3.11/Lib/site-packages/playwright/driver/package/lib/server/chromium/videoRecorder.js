@@ -141,7 +141,7 @@ class VideoRecorder {
   }
   async _sendFrame(frame) {
     return new Promise(f => this._process.stdin.write(frame, f)).then(error => {
-      if (error) this._progress.log(`ffmpeg failed to write: ${error}`);
+      if (error) this._progress.log(`ffmpeg failed to write: ${String(error)}`);
     });
   }
   async stop() {

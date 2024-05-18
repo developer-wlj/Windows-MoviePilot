@@ -30,7 +30,7 @@ class Selectors {
     this.guid = `selectors@${(0, _utils.createGuid)()}`;
     this._testIdAttributeName = 'data-testid';
     // Note: keep in sync with InjectedScript class.
-    this._builtinEngines = new Set(['css', 'css:light', 'xpath', 'xpath:light', '_react', '_vue', 'text', 'text:light', 'id', 'id:light', 'data-testid', 'data-testid:light', 'data-test-id', 'data-test-id:light', 'data-test', 'data-test:light', 'nth', 'visible', 'internal:control', 'internal:has', 'internal:has-not', 'internal:has-text', 'internal:has-not-text', 'internal:and', 'internal:or', 'role', 'internal:attr', 'internal:label', 'internal:text', 'internal:role', 'internal:testid']);
+    this._builtinEngines = new Set(['css', 'css:light', 'xpath', 'xpath:light', '_react', '_vue', 'text', 'text:light', 'id', 'id:light', 'data-testid', 'data-testid:light', 'data-test-id', 'data-test-id:light', 'data-test', 'data-test:light', 'nth', 'visible', 'internal:control', 'internal:has', 'internal:has-not', 'internal:has-text', 'internal:has-not-text', 'internal:and', 'internal:or', 'internal:chain', 'role', 'internal:attr', 'internal:label', 'internal:text', 'internal:role', 'internal:testid']);
     this._builtinEnginesInMainWorld = new Set(['_react', '_vue']);
     this._engines = new Map();
   }
@@ -56,12 +56,13 @@ class Selectors {
   parseSelector(selector, strict) {
     const parsed = typeof selector === 'string' ? (0, _selectorParser.parseSelector)(selector) : selector;
     let needsMainWorld = false;
-    for (const name of (0, _selectorParser.allEngineNames)(parsed)) {
+    (0, _selectorParser.visitAllSelectorParts)(parsed, part => {
+      const name = part.name;
       const custom = this._engines.get(name);
       if (!custom && !this._builtinEngines.has(name)) throw new _selectorParser.InvalidSelectorError(`Unknown engine "${name}" while parsing selector ${(0, _selectorParser.stringifySelector)(parsed)}`);
       if (custom && !custom.contentScript) needsMainWorld = true;
       if (this._builtinEnginesInMainWorld.has(name)) needsMainWorld = true;
-    }
+    });
     return {
       parsed,
       world: needsMainWorld ? 'main' : 'utility',

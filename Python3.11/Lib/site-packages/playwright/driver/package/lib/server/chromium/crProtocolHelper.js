@@ -7,6 +7,7 @@ exports.exceptionToError = exceptionToError;
 exports.getExceptionMessage = getExceptionMessage;
 exports.readProtocolStream = readProtocolStream;
 exports.releaseObject = releaseObject;
+exports.saveProtocolStream = saveProtocolStream;
 exports.toButtonsMask = toButtonsMask;
 exports.toConsoleMessageLocation = toConsoleMessageLocation;
 exports.toModifiersMask = toModifiersMask;
@@ -48,28 +49,38 @@ async function releaseObject(client, objectId) {
     objectId
   }).catch(error => {});
 }
-async function readProtocolStream(client, handle, path) {
+async function saveProtocolStream(client, handle, path) {
   let eof = false;
-  let fd;
-  if (path) {
-    await (0, _fileUtils.mkdirIfNeeded)(path);
-    fd = await _fs.default.promises.open(path, 'w');
-  }
-  const bufs = [];
+  await (0, _fileUtils.mkdirIfNeeded)(path);
+  const fd = await _fs.default.promises.open(path, 'w');
   while (!eof) {
     const response = await client.send('IO.read', {
       handle
     });
     eof = response.eof;
     const buf = Buffer.from(response.data, response.base64Encoded ? 'base64' : undefined);
-    bufs.push(buf);
-    if (fd) await fd.write(buf);
+    await fd.write(buf);
   }
-  if (fd) await fd.close();
+  await fd.close();
   await client.send('IO.close', {
     handle
   });
-  return Buffer.concat(bufs);
+}
+async function readProtocolStream(client, handle) {
+  let eof = false;
+  const chunks = [];
+  while (!eof) {
+    const response = await client.send('IO.read', {
+      handle
+    });
+    eof = response.eof;
+    const buf = Buffer.from(response.data, response.base64Encoded ? 'base64' : undefined);
+    chunks.push(buf);
+  }
+  await client.send('IO.close', {
+    handle
+  });
+  return Buffer.concat(chunks);
 }
 function toConsoleMessageLocation(stackTrace) {
   return stackTrace && stackTrace.callFrames.length ? {

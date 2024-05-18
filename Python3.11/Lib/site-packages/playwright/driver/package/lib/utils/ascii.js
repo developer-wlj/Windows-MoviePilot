@@ -3,6 +3,7 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
+exports.jsonStringifyForceASCII = jsonStringifyForceASCII;
 exports.wrapInASCIIBox = wrapInASCIIBox;
 /**
  * Copyright (c) Microsoft Corporation.
@@ -24,4 +25,7 @@ function wrapInASCIIBox(text, padding = 0) {
   const lines = text.split('\n');
   const maxLength = Math.max(...lines.map(line => line.length));
   return ['╔' + '═'.repeat(maxLength + padding * 2) + '╗', ...lines.map(line => '║' + ' '.repeat(padding) + line + ' '.repeat(maxLength - line.length + padding) + '║'), '╚' + '═'.repeat(maxLength + padding * 2) + '╝'].join('\n');
+}
+function jsonStringifyForceASCII(object) {
+  return JSON.stringify(object).replace(/[\u007f-\uffff]/g, c => '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4));
 }

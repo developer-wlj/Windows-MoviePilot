@@ -35,7 +35,10 @@ class BrowserServerLauncherImpl {
     this._browserName = browserName;
   }
   async launchServer(options = {}) {
-    const playwright = (0, _playwright.createPlaywright)('javascript');
+    const playwright = (0, _playwright.createPlaywright)({
+      sdkLanguage: 'javascript',
+      isServer: true
+    });
     // TODO: enable socks proxy once ipv6 is supported.
     const socksProxy = false ? new _socksProxy.SocksProxy() : undefined;
     playwright.options.socksProxyPort = await (socksProxy === null || socksProxy === void 0 ? void 0 : socksProxy.listen(0));
@@ -56,6 +59,7 @@ class BrowserServerLauncherImpl {
 
     // 2. Start the server
     const server = new _playwrightServer.PlaywrightServer({
+      mode: 'launchServer',
       path,
       maxConnections: Infinity,
       preLaunchedBrowser: browser,

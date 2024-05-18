@@ -27,6 +27,12 @@ Object.defineProperty(exports, "RootDispatcher", {
     return _dispatcher.RootDispatcher;
   }
 });
+Object.defineProperty(exports, "SocksProxy", {
+  enumerable: true,
+  get: function () {
+    return _socksProxy.SocksProxy;
+  }
+});
 Object.defineProperty(exports, "createPlaywright", {
   enumerable: true,
   get: function () {
@@ -43,6 +49,18 @@ Object.defineProperty(exports, "installDefaultBrowsersForNpmInstall", {
   enumerable: true,
   get: function () {
     return _registry.installDefaultBrowsersForNpmInstall;
+  }
+});
+Object.defineProperty(exports, "openTraceInBrowser", {
+  enumerable: true,
+  get: function () {
+    return _traceViewer.openTraceInBrowser;
+  }
+});
+Object.defineProperty(exports, "openTraceViewerApp", {
+  enumerable: true,
+  get: function () {
+    return _traceViewer.openTraceViewerApp;
   }
 });
 Object.defineProperty(exports, "registry", {
@@ -63,12 +81,6 @@ Object.defineProperty(exports, "serverSideCallMetadata", {
     return _instrumentation.serverSideCallMetadata;
   }
 });
-Object.defineProperty(exports, "showTraceViewer", {
-  enumerable: true,
-  get: function () {
-    return _traceViewer.showTraceViewer;
-  }
-});
 Object.defineProperty(exports, "writeDockerVersion", {
   enumerable: true,
   get: function () {
@@ -81,3 +93,4 @@ var _playwrightDispatcher = require("./dispatchers/playwrightDispatcher");
 var _playwright = require("./playwright");
 var _traceViewer = require("./trace/viewer/traceViewer");
 var _instrumentation = require("./instrumentation");
+var _socksProxy = require("../common/socksProxy");

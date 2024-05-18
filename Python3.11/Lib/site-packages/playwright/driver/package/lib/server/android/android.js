@@ -41,14 +41,12 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 const ARTIFACTS_FOLDER = _path.default.join(_os.default.tmpdir(), 'playwright-artifacts-');
 class Android extends _instrumentation.SdkObject {
-  constructor(backend, playwrightOptions) {
-    super(playwrightOptions.rootSdkObject, 'android');
+  constructor(parent, backend) {
+    super(parent, 'android');
     this._backend = void 0;
     this._devices = new Map();
     this._timeoutSettings = void 0;
-    this._playwrightOptions = void 0;
     this._backend = backend;
-    this._playwrightOptions = playwrightOptions;
     this._timeoutSettings = new _timeoutSettings.TimeoutSettings();
   }
   setDefaultTimeout(timeout) {
@@ -263,7 +261,6 @@ class AndroidDevice extends _instrumentation.SdkObject {
       cleanupArtifactsDir().catch(e => (0, _utilsBundle.debug)('pw:android')(`could not cleanup artifacts dir: ${e}`));
     });
     const browserOptions = {
-      ...this._android._playwrightOptions,
       name: 'clank',
       isChromium: true,
       slowMo: 0,
@@ -281,7 +278,7 @@ class AndroidDevice extends _instrumentation.SdkObject {
       originalLaunchOptions: {}
     };
     (0, _browserContext.validateBrowserContextOptions)(options, browserOptions);
-    const browser = await _crBrowser.CRBrowser.connect(androidBrowser, browserOptions);
+    const browser = await _crBrowser.CRBrowser.connect(this.attribution.playwright, androidBrowser, browserOptions);
     const controller = new _progress.ProgressController((0, _instrumentation.serverSideCallMetadata)(), this);
     const defaultContext = browser._defaultContext;
     await controller.run(async progress => {

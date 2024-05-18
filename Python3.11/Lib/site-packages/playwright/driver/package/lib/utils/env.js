@@ -5,6 +5,7 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.getAsBooleanFromENV = getAsBooleanFromENV;
 exports.getFromENV = getFromENV;
+exports.getPackageManager = getPackageManager;
 /**
  * Copyright (c) Microsoft Corporation.
  *
@@ -30,4 +31,10 @@ function getFromENV(name) {
 function getAsBooleanFromENV(name) {
   const value = getFromENV(name);
   return !!value && value !== 'false' && value !== '0';
+}
+function getPackageManager() {
+  const env = process.env.npm_config_user_agent || '';
+  if (env.includes('yarn')) return 'yarn';
+  if (env.includes('pnpm')) return 'pnpm';
+  return 'npm';
 }

@@ -5,6 +5,7 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.minimatch = exports.mime = exports.lockfile = exports.jpegjs = exports.getProxyForUrl = exports.debug = exports.colors = exports.SocksProxyAgent = exports.PNG = exports.HttpsProxyAgent = void 0;
 exports.ms = ms;
+exports.open = void 0;
 exports.parseStackTraceLine = parseStackTraceLine;
 exports.wsServer = exports.wsSender = exports.wsReceiver = exports.ws = exports.rimraf = exports.progress = exports.program = void 0;
 var _url = _interopRequireDefault(require("url"));
@@ -42,6 +43,8 @@ const mime = require('./utilsBundleImpl').mime;
 exports.mime = mime;
 const minimatch = require('./utilsBundleImpl').minimatch;
 exports.minimatch = minimatch;
+const open = require('./utilsBundleImpl').open;
+exports.open = open;
 const PNG = require('./utilsBundleImpl').PNG;
 exports.PNG = PNG;
 const program = require('./utilsBundleImpl').program;

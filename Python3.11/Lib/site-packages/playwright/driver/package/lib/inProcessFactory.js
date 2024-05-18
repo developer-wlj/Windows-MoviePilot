@@ -25,8 +25,10 @@ var _androidServerImpl = require("./androidServerImpl");
  */
 
 function createInProcessPlaywright() {
-  const playwright = (0, _server.createPlaywright)(process.env.PW_LANG_NAME || 'javascript');
-  const clientConnection = new _connection.Connection();
+  const playwright = (0, _server.createPlaywright)({
+    sdkLanguage: process.env.PW_LANG_NAME || 'javascript'
+  });
+  const clientConnection = new _connection.Connection(undefined, undefined);
   const dispatcherConnection = new _server.DispatcherConnection(true /* local */);
 
   // Dispatch synchronously at first.

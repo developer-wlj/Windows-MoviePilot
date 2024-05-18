@@ -112,6 +112,7 @@ Debugger.Events = {
 };
 function shouldPauseOnCall(sdkObject, metadata) {
   var _sdkObject$attributio;
+  if (sdkObject.attribution.playwright.options.isServer) return false;
   if (!((_sdkObject$attributio = sdkObject.attribution.browser) !== null && _sdkObject$attributio !== void 0 && _sdkObject$attributio.options.headful) && !(0, _utils.isUnderTest)()) return false;
   return metadata.method === 'pause';
 }

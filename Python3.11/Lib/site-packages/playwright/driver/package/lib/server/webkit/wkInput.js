@@ -137,7 +137,9 @@ class RawMouseImpl {
     if ((_this$_page = this._page) !== null && _this$_page !== void 0 && _this$_page._browserContext._options.isMobile) throw new Error('Mouse wheel is not supported in mobile WebKit');
     await this._session.send('Page.updateScrollingState');
     // Wheel events hit the compositor first, so wait one frame for it to be synced.
-    await this._page.mainFrame().evaluateExpression(`new Promise(requestAnimationFrame)`, false, false, 'utility');
+    await this._page.mainFrame().evaluateExpression(`new Promise(requestAnimationFrame)`, {
+      world: 'utility'
+    });
     await this._pageProxySession.send('Input.dispatchWheelEvent', {
       x,
       y,

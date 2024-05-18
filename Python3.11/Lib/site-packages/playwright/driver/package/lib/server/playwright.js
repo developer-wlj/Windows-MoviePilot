@@ -32,11 +32,9 @@ var _debugController = require("./debugController");
  */
 
 class Playwright extends _instrumentation.SdkObject {
-  constructor(sdkLanguage, isInternalPlaywright) {
+  constructor(options) {
     super({
-      attribution: {
-        isInternalPlaywright
-      },
+      attribution: {},
       instrumentation: (0, _instrumentation.createInstrumentation)()
     }, undefined, 'Playwright');
     this.selectors = void 0;
@@ -49,6 +47,8 @@ class Playwright extends _instrumentation.SdkObject {
     this.debugController = void 0;
     this._allPages = new Set();
     this._allBrowsers = new Set();
+    this.options = options;
+    this.attribution.playwright = this;
     this.instrumentation.addListener({
       onBrowserOpen: browser => this._allBrowsers.add(browser),
       onBrowserClose: browser => this._allBrowsers.delete(browser),
@@ -58,17 +58,12 @@ class Playwright extends _instrumentation.SdkObject {
         _debugLogger.debugLogger.log(logName, message);
       }
     }, null);
-    this.options = {
-      rootSdkObject: this,
-      selectors: new _selectors.Selectors(),
-      sdkLanguage: sdkLanguage
-    };
-    this.chromium = new _chromium.Chromium(this.options);
-    this.firefox = new _firefox.Firefox(this.options);
-    this.webkit = new _webkit.WebKit(this.options);
-    this.electron = new _electron.Electron(this.options);
-    this.android = new _android.Android(new _backendAdb.AdbBackend(), this.options);
-    this.selectors = this.options.selectors;
+    this.chromium = new _chromium.Chromium(this);
+    this.firefox = new _firefox.Firefox(this);
+    this.webkit = new _webkit.WebKit(this);
+    this.electron = new _electron.Electron(this);
+    this.android = new _android.Android(this, new _backendAdb.AdbBackend());
+    this.selectors = new _selectors.Selectors();
     this.debugController = new _debugController.DebugController(this);
   }
   async hideHighlight() {
@@ -82,6 +77,6 @@ class Playwright extends _instrumentation.SdkObject {
   }
 }
 exports.Playwright = Playwright;
-function createPlaywright(sdkLanguage, isInternalPlaywright = false) {
-  return new Playwright(sdkLanguage, isInternalPlaywright);
+function createPlaywright(options) {
+  return new Playwright(options);
 }

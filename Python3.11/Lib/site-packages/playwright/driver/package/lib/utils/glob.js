@@ -20,14 +20,16 @@ exports.globToRegex = globToRegex;
  * limitations under the License.
  */
 
-const escapeGlobChars = new Set(['/', '$', '^', '+', '.', '(', ')', '=', '!', '|']);
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_expressions#escaping
+const escapedChars = new Set(['$', '^', '+', '.', '*', '(', ')', '|', '\\', '?', '{', '}', '[', ']']);
 function globToRegex(glob) {
   const tokens = ['^'];
-  let inGroup;
+  let inGroup = false;
   for (let i = 0; i < glob.length; ++i) {
     const c = glob[i];
-    if (escapeGlobChars.has(c)) {
-      tokens.push('\\' + c);
+    if (c === '\\' && i + 1 < glob.length) {
+      const char = glob[++i];
+      tokens.push(escapedChars.has(char) ? '\\' + char : char);
       continue;
     }
     if (c === '*') {
@@ -51,6 +53,12 @@ function globToRegex(glob) {
       case '?':
         tokens.push('.');
         break;
+      case '[':
+        tokens.push('[');
+        break;
+      case ']':
+        tokens.push(']');
+        break;
       case '{':
         inGroup = true;
         tokens.push('(');
@@ -67,7 +75,7 @@ function globToRegex(glob) {
         tokens.push('\\' + c);
         break;
       default:
-        tokens.push(c);
+        tokens.push(escapedChars.has(c) ? '\\' + c : c);
     }
   }
   tokens.push('$');

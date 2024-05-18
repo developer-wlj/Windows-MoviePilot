@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import time
+import weakref
 from xml.etree import ElementTree
 
 import requests
@@ -62,7 +63,8 @@ class PlexClient(PlexObject):
     key = '/resources'
 
     def __init__(self, server=None, data=None, initpath=None, baseurl=None,
-          identifier=None, token=None, connect=True, session=None, timeout=None):
+          identifier=None, token=None, connect=True, session=None, timeout=None,
+          parent=None):
         super(PlexClient, self).__init__(server, data, initpath)
         self._baseurl = baseurl.strip('/') if baseurl else None
         self._clientIdentifier = identifier
@@ -70,11 +72,13 @@ class PlexClient(PlexObject):
         self._showSecrets = CONFIG.get('log.show_secrets', '').lower() == 'true'
         server_session = server._session if server else None
         self._session = session or server_session or requests.Session()
+        self._timeout = timeout or TIMEOUT
         self._proxyThroughServer = False
         self._commandId = 0
         self._last_call = 0
         self._timeline_cache = []
         self._timeline_cache_timestamp = 0
+        self._parent = weakref.ref(parent) if parent is not None else None
         if not any([data is not None, initpath, baseurl, token]):
             self._baseurl = CONFIG.get('auth.client_baseurl', 'http://localhost:32433')
             self._token = logfilter.add_secret(CONFIG.get('auth.client_token'))
@@ -94,7 +98,7 @@ class PlexClient(PlexObject):
             raise Unsupported('Cannot reload an object not built from a URL.')
         self._initpath = self.key
         data = self.query(self.key, timeout=timeout)
-        if not data:
+        if data is None:
             raise NotFound(f"Client not found at {self._baseurl}")
         if self._clientIdentifier:
             client = next(
@@ -179,7 +183,7 @@ class PlexClient(PlexObject):
         """
         url = self.url(path)
         method = method or self._session.get
-        timeout = timeout or TIMEOUT
+        timeout = timeout or self._timeout
         log.debug('%s %s', method.__name__.upper(), url)
         headers = self._headers(**headers or {})
         response = method(url, headers=headers, timeout=timeout, **kwargs)

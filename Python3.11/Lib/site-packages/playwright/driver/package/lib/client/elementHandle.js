@@ -259,11 +259,11 @@ function convertSelectOptionValues(values) {
 async function convertInputFiles(files, context) {
   const items = Array.isArray(files) ? files.slice() : [files];
   const sizeLimit = 50 * 1024 * 1024;
-  const hasLargeBuffer = items.find(item => typeof item === 'object' && item.buffer && item.buffer.byteLength > sizeLimit);
-  if (hasLargeBuffer) throw new Error('Cannot set buffer larger than 50Mb, please write it to a file and pass its path instead.');
+  const totalBufferSizeExceedsLimit = items.reduce((size, item) => size + (typeof item === 'object' && item.buffer ? item.buffer.byteLength : 0), 0) > sizeLimit;
+  if (totalBufferSizeExceedsLimit) throw new Error('Cannot set buffer larger than 50Mb, please write it to a file and pass its path instead.');
   const stats = await Promise.all(items.filter(_utils.isString).map(item => _fs.default.promises.stat(item)));
-  const hasLargeFile = !!stats.find(s => s.size > sizeLimit);
-  if (hasLargeFile) {
+  const totalFileSizeExceedsLimit = stats.reduce((acc, stat) => acc + stat.size, 0) > sizeLimit;
+  if (totalFileSizeExceedsLimit) {
     if (context._connection.isRemote()) {
       const streams = await Promise.all(items.map(async item => {
         (0, _utils.assert)((0, _utils.isString)(item));

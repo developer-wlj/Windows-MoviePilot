@@ -26,7 +26,10 @@ var _playwrightServer = require("./remote/playwrightServer");
 
 class AndroidServerLauncherImpl {
   async launchServer(options = {}) {
-    const playwright = (0, _playwright.createPlaywright)('javascript');
+    const playwright = (0, _playwright.createPlaywright)({
+      sdkLanguage: 'javascript',
+      isServer: true
+    });
     // 1. Pre-connect to the device
     let devices = await playwright.android.devices({
       host: options.adbHost,
@@ -44,6 +47,7 @@ class AndroidServerLauncherImpl {
 
     // 2. Start the server
     const server = new _playwrightServer.PlaywrightServer({
+      mode: 'launchServer',
       path,
       maxConnections: 1,
       preLaunchedAndroidDevice: device

@@ -29,11 +29,11 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
  */
 
 class WebKit extends _browserType.BrowserType {
-  constructor(playwrightOptions) {
-    super('webkit', playwrightOptions);
+  constructor(parent) {
+    super(parent, 'webkit');
   }
   _connectToTransport(transport, options) {
-    return _wkBrowser.WKBrowser.connect(transport, options);
+    return _wkBrowser.WKBrowser.connect(this.attribution.playwright, transport, options);
   }
   _amendEnvironment(env, userDataDir, executable, browserArguments) {
     return {
