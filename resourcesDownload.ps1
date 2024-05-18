@@ -8,41 +8,35 @@ if (Test-Path "sites.cp311-win_amd64.pyd") {
         Write-Output "资源包无需更新"
     } else {
         Write-Output "检测到资源包有更新"
-        $extract_url = "https://raw.githubusercontent.com/jxxghp/MoviePilot-Resources/main/resources/sites.cp311-win_amd64.pyd"
-        echo 正在下载sites.cp311-win_amd64.pyd
-        Invoke-WebRequest -URI $extract_url -OutFile "sites.cp311-win_amd64.pyd"
-        $extract_url1 = "https://raw.githubusercontent.com/jxxghp/MoviePilot-Resources/main/resources/user.sites.bin"
-        echo 正在下载user.sites.bin
-        Invoke-WebRequest -URI $extract_url1 -OutFile "user.sites.bin"
-        echo $resources_resp[0].sha>"../../../tmp/resourceVersion.txt"
+        try {
+            $extract_url = "https://raw.githubusercontent.com/jxxghp/MoviePilot-Resources/main/resources/sites.cp311-win_amd64.pyd"
+            echo "正在下载sites.cp311-win_amd64.pyd"
+            Rename-Item -Path "sites.cp311-win_amd64.pyd" -NewName "sites.cp311-win_amd64.pyd1" -Force
+            Invoke-WebRequest -URI $extract_url -OutFile "sites.cp311-win_amd64.pyd"
+            echo "sites.cp311-win_amd64.pyd下载成功"
+        } catch {
+            echo "sites.cp311-win_amd64.pyd下载失败, 以旧文件继续运行"
+            Rename-Item -Path "sites.cp311-win_amd64.pyd1" -NewName "sites.cp311-win_amd64.pyd" -Force
+        }
+
+        try {
+            $extract_url1 = "https://raw.githubusercontent.com/jxxghp/MoviePilot-Resources/main/resources/user.sites.bin"
+            echo "正在下载user.sites.bin"
+            Rename-Item -Path "user.sites.bin" -NewName "user.sites.bin1" -Force
+            Invoke-WebRequest -URI $extract_url1 -OutFile "user.sites.bin"
+            echo user.sites.bin下载成功
+            echo $resources_resp[0].sha>"../../../tmp/resourceVersion.txt"
+        } catch {
+            echo "user.sites.bin下载失败, 以旧文件继续运行"
+            Rename-Item -Path "user.sites.bin1" -NewName "user.sites.bin" -Force
+        }
+
     }
 
 } else {
+    echo "核心文件 为照顾连接github不好的用户 提前下好的, 因此文件较老 需二次启动更新"
     echo 正在释放资源包文件
     Move-Item -Path "../../../tmp/resources/*" -Destination . -Force
-}
-
-cd ../plugins/
-if (Test-Path "../../../tmp/plugins.zip") {
-    echo 正在释放插件包资源
-    Expand-Archive -Path "../../../tmp/plugins.zip" -DestinationPath .
-    Remove-Item -Path "../../../tmp/plugins.zip"
-
-} else {
-    $plugin_url="https://api.github.com/repos/jxxghp/MoviePilot-Plugins/commits?per_page=1"
-    $plugin_resp=Invoke-WebRequest -URI $plugin_url | ConvertFrom-Json
-    $eqVersionByPlugin = Get-Content "../../../tmp/pluginVersion.txt" -TotalCount 1
-    if ($plugin_resp[0].sha -eq$eqVersionByPlugin) {
-        Write-Output "插件资源无需更新"
-    } else {
-        echo 检测到插件资源有新版本
-        Invoke-WebRequest -Uri "https://github.com/jxxghp/MoviePilot-Plugins/archive/refs/heads/main.zip" -OutFile "MoviePilot-Plugins-main.zip"
-        Expand-Archive -Path "MoviePilot-Plugins-main.zip" -DestinationPath "MoviePilot-Plugins-main"
-        Copy-Item -Path "MoviePilot-Plugins-main/MoviePilot-Plugins-main/plugins/*" -Destination . -Force -Recurse
-        Remove-Item -Path "MoviePilot-Plugins-main.zip"
-        Remove-Item -Path "MoviePilot-Plugins-main" -Recurse -Force
-        echo $plugin_resp[0].sha>"../../../tmp/pluginVersion.txt"
-    }
 }
 
 
