@@ -7,9 +7,10 @@
 - MP前端面板 内存展示 改为MP实际占用的内存 不是整机占用
 - 停机速度更快 
 
-### Windows-MoviePilot-V1.4.8-1及之后 版本无法运行说明
-- 如果你是从1.4.8-1之前版本升级到>=1.4.8-1,请删除project目录-MoviePilot目录-app目录-db目录-models目录下-plugin.py文件, 否则无法运行服务
-- 新安装用户 不受影响
+### 关于看不到网络挂载的盘符问题
+- 程序默认安装目录是系统盘的Program Files (x86), 如果在此目录下 运行MP, 需管理员模式,所以Windows-MoviePilot默认申请以管理员身份运行
+- 在管理员身份下运行, 是看不到普通用户挂载的盘符, 需要修改注册表(自行搜索)
+- 可以前往[Windows-MoviePilot-Git](https://github.com/developer-wlj/Windows-MoviePilot/tree/Windows-MoviePilot-Git) 新项目运行,解决此类问题
 
 ### 版本命名规则
 如 "1.1.0.d0a586a" 
