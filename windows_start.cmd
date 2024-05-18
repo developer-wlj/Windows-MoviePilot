@@ -67,13 +67,13 @@ cd Nginx1.15.11
 start /b nginx_init.bat
 cd ..
 echo "如果您需要停止程序，请按下组合键：CTRL + C"
-echo "已自动为你打开了浏览器"
-start "" "http://127.0.0.1:3000"
 cd MoviePilot
 echo "扫描可安装的包......."
 %PYTHON_BINARY% -m pip install -r requirements.txt
 cd app/plugins
 powershell.exe -Command "$pythonBinary = '%PYTHON_BINARY%'; Get-ChildItem -Path . -Recurse -Filter 'requirements.txt' | ForEach-Object { &$pythonBinary -m pip install -i https://mirrors.aliyun.com/pypi/simple/ -r $_.FullName }"
+echo "已自动为你打开了浏览器"
+start "" "http://127.0.0.1:3000"
 cd ../..
 set PYTHONPATH=.
 echo "启动后端中......"
