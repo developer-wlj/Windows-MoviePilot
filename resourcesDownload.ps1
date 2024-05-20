@@ -47,9 +47,10 @@ if (Test-Path "sites.cp311-win_amd64.pyd") {
     }
 
 } else {
-    echo "核心文件 为照顾连接github不好的用户 提前下好的, 因此文件较老 需二次启动更新"
+    echo "核心文件 为照顾连接github不好的用户 提前下好的, 因此文件可能比较老 需二次启动更新"
     echo 正在释放资源包文件
     Move-Item -Path "../../../tmp/resources/*" -Destination . -Force
+    Start-Sleep -Seconds 5
 }
 
 

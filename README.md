@@ -2,7 +2,7 @@
 
 
  **基于MoviePilot原版，优化安装流程并整合为一体包，无需安装其他任何文件即可运行MoviePilot。**  
- 点击 [链接](https://github.com/developer-wlj/Windows-MoviePilot/archive/refs/heads/Windows-MoviePilot-Git.zip) 下载 
+ 点击 [链接](https://github.com/developer-wlj/Windows-MoviePilot/releases/tag/Windows-MoviePilot-Git.V1.0) 前往下载 
  - 基于99.99%的原版(main.py文件删除2行不适用windows下的代码)
  - 优化/可靠
  - 一键安装(基于批处理)/自动升级(基于git)/启动
@@ -21,4 +21,4 @@
  - 用能力的 可自行修改 `windows_start.cmd` git clone 的地址
 
  ***
- 思路来源地址：https://github.com/KiWinger/IYUUPlus-Allinone
+ 思路来源项目：https://github.com/KiWinger/IYUUPlus-Allinone

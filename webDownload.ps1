@@ -34,10 +34,12 @@ if (Test-Path "tmp\dist.zip") {
                 echo $web_resp.id>"tmp/currentWebVersion.txt"
             } else {
                 Write-Host "下载失败, 请重新启动"
+                Start-Sleep -Seconds 5
                 Exit 1
             }
         } catch {
             echo "前端下载失败, 如果是首次运行,请二次启动, 如果不是 将以旧文件启动前端"
+            Start-Sleep -Seconds 5
         }
 
 
