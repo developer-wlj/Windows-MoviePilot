@@ -20,11 +20,10 @@
 ### 如何运行
 Windows-MoviePilot内置Python3.11环境,需要注意是Python3.11不支持Win7及之前的老系统,还有系统必须是64位  
 Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
-1. 用户需自己提前安装好谷歌浏览器(MoviePilot需要检测到chrome环境,chrome必须是默认路径,如果用户手动更改过,需重新安装), 官网地址: https://www.google.com/intl/zh-CN/chrome/
-2. 双击安装Windows-MoviePilot包, 完成安装, 注意`安装目录不能有中文出现`,否则无法启动nginx(版本较低原因)
-3. (步骤3可以先跳过,看看是否能成功运行) 详情请查看[关于app.env如何配置](https://github.com/developer-wlj/Windows-MoviePilot#%E5%85%B3%E4%BA%8Eappenv%E5%A6%82%E4%BD%95%E9%85%8D%E7%BD%AE)
-4. 双击桌面MoviePilot.exe运行
-5. 手动打开浏览器 输入 http://127.0.0.1:3000 用户名默认: admin, 密码: 第一次安装，随机生成密码并写入到日志
+1. 系统必须有Visual C++ Redistributable, 没有的 可点击微软开发者官网的链接https://aka.ms/vs/17/release/VC_redist.x64.exe 下载
+2. (步骤2可以先跳过,看看是否能成功运行) 详情请查看[关于app.env如何配置](https://github.com/developer-wlj/Windows-MoviePilot#%E5%85%B3%E4%BA%8Eappenv%E5%A6%82%E4%BD%95%E9%85%8D%E7%BD%AE)
+3. 双击桌面MoviePilot快捷图标运行
+4. 浏览器 输入 http://127.0.0.1:3000 用户名默认: admin, 密码: 第一次安装，随机生成密码并写入到日志
 中
 ### 如何升级作者打包好的版本
 1. 升级安装, 会覆盖category.yaml,如果category.yaml使用默认配置,无需备份category.yaml
