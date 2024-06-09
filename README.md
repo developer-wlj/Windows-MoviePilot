@@ -7,10 +7,13 @@
 - MP前端面板 内存展示 改为MP实际占用的内存 不是整机占用
 - 停机速度更快 
 
-### 关于看不到网络挂载的盘符问题
-- 程序默认安装目录是系统盘的Program Files (x86), 如果在此目录下 运行MP, 需管理员模式,所以Windows-MoviePilot默认申请以管理员身份运行
-- 在管理员身份下运行, 是看不到普通用户挂载的盘符, 需要修改注册表(自行搜索)
-- 可以前往[Windows-MoviePilot-Git](https://github.com/developer-wlj/Windows-MoviePilot/tree/Windows-MoviePilot-Git) 新项目运行,解决此类问题
+### 重大更新!!!
+- 原项目在v1.9.4加入了webpush,极大提升了通知体验,这里说下怎么使用
+- 先看原理图
+  ![image](https://upload-images.jianshu.io/upload_images/3473978-7b9d03bd5cc5e86f.png)
+- 可以看到浏览器先向服务端发起订阅,但chrome和egde需要挂代理才行,而firefox是直连的 推荐firefox  
+- 电脑端登录后,提示需要通知权限,点击允许即可  
+- 手机端有些特殊,不管是chrome,egde 还是firefox,都需要先把MP网页安装到主界面,然后允许通知权限即可
 
 ### 版本命名规则
 如 "1.1.0.d0a586a" 
@@ -54,6 +57,11 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
 2. 在当前目录复制一份app.env并重命名为appWindows.env
 3. 打开appWindows.env配置所取变量  
 提醒: 配置appWindows.env, 之后的升级安装 不会覆盖用户手动创建的文件,因此不需要备份appWindows.env文件
+
+### 关于看不到网络挂载的盘符问题
+- 程序默认安装目录是系统盘的Program Files (x86), 如果在此目录下 运行MP, 需管理员模式,所以Windows-MoviePilot默认申请以管理员身份运行
+- 在管理员身份下运行, 是看不到普通用户挂载的盘符, 需要修改注册表(自行搜索)
+- 可以前往[Windows-MoviePilot-Git](https://github.com/developer-wlj/Windows-MoviePilot/tree/Windows-MoviePilot-Git) 新项目运行,解决此类问题
 
 
  
