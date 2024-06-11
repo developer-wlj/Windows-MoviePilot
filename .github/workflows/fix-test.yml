@@ -47,11 +47,20 @@ jobs:
            }
           }
 
+      - name: 拉取后端代码
+        uses: actions/checkout@v2
+        with:
+          ref: wlj0807
+          repository: developer-wlj/MoviePilot
+          path: 'MoviePilot'
+          fetch-depth: 2
+
       - name: Init Python 3.11.4
         uses: actions/setup-python@v4
         with:
           python-version: '3.11.4'
           cache: 'pip'
+          run: cd MoviePilot
 
 
       - name: 拉取exe代码
@@ -63,26 +72,6 @@ jobs:
           ssh-key: ${{ secrets.DEPLOY_KEY }}
           path: 'Inno-Setup-MoviePilot'
           fetch-depth: 2
-
-      - name: exe代码目录打印
-        run: |
-          cd Inno-Setup-MoviePilot
-          pwd
-          dir
-
-      - name: 拉取后端代码
-        uses: actions/checkout@v2
-        with:
-          ref: wlj0807
-          repository: developer-wlj/MoviePilot
-          path: 'MoviePilot'
-          fetch-depth: 2
-
-      - name: 后端代码目录打印
-        run: |
-          cd MoviePilot
-          pwd
-          dir
 
       - name: Install dependent packages
         run: |
