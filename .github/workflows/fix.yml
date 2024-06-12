@@ -47,10 +47,26 @@ jobs:
            }
           }
 
+      - name: 拉取后端代码
+        uses: actions/checkout@v2
+        with:
+          ref: wlj0807
+          repository: developer-wlj/MoviePilot
+          path: 'MoviePilot'
+          fetch-depth: 2
+
+      - name: 后端代码目录打印
+        run: |
+          cd MoviePilot
+          pwd
+          dir
+
       - name: Init Python 3.11.4
         uses: actions/setup-python@v4
         with:
           python-version: '3.11.4'
+          cache: 'pip'
+          run: cd MoviePilot
 
 
       - name: 拉取exe代码
@@ -182,9 +198,6 @@ jobs:
           cp -r $python_root_dir/* .
           dir
 
-      - name: Install Inno Setup Compiler
-        uses: pwall2222/inno-setup-download@v0.0.4
-
       - name: Compile Inno Setup Script
         run: |
           cat $env:GITHUB_OUTPUT
@@ -196,6 +209,8 @@ jobs:
           echo $env:LATEST_VERSION
           dir
           # git clone https://github.com/developer-wlj/Inno-Setup-MoviePilot.git
+          Invoke-WebRequest https://jrsoftware.org/download.php/is.exe?site=1 -OutFile is.exe
+          Start-Process is.exe -ArgumentList "/VERYSILENT", "/NORETART", "/SP-","/SUPPRESSMSGBOXES","/DIR=C:\Users\runneradmin\AppData\Local\Temp\inno" -NoNewWindow -Wait
           cd Inno-Setup-MoviePilot
           Copy-Item -Path ".\ChineseSimplified.isl" -Destination "C:\Users\runneradmin\AppData\Local\Temp\inno\Languages"
           echo $env:FIRST_VERSION
@@ -205,7 +220,7 @@ jobs:
           echo 111
           echo $env:LATEST_VERSION
           # iscc /DAppVersion="$env:FIRST_VERSION.$env:HASH_VERSION" build.iss
-          iscc "/DMyAppVersion=$env:LATEST_VERSION" build.iss
+          C:\Users\runneradmin\AppData\Local\Temp\inno "/DMyAppVersion=$env:LATEST_VERSION" build.iss
           # $env:FIRST_VERSION = $first_version
           # $env:HASH_VERSION = $hash_version
           # echo "HASH_VERSION = $hash_version" >> $env:GITHUB_ENV
