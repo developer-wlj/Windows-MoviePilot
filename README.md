@@ -7,19 +7,17 @@
 - MP前端面板 内存展示 改为MP实际占用的内存 不是整机占用
 - 停机速度更快 
 
-### 重大更新!!!
-- 原项目在v1.9.4加入了webpush,极大提升了通知体验,这里说下怎么使用
-- 先看原理图
-  ![image](https://upload-images.jianshu.io/upload_images/3473978-7b9d03bd5cc5e86f.png)
-- 可以看到浏览器先向服务端发起订阅,但chrome和egde需要挂代理才行,而firefox是直连的 推荐firefox  
-- 电脑端登录后,提示需要通知权限,点击允许即可  
-- 手机端有些特殊,不管是chrome,egde 还是firefox,都需要先把MP网页安装到主界面,然后允许通知权限即可
-- 补充一点,只能localhost,127.0.0.1和https才能实现此功能, 相关设置自己搜索吧
-
 ### 版本命名规则
 如 "1.1.0.d0a586a" 
 - 1.1.0 指的是原MoviePilot仓库 发布的版本号
 - d0a586a 指的是 原MoviePilot仓库 最近一次提交代码的hash
+- 每间隔4小时,自动发一次版
+- 自动发版可能会打进去新的bug(类似于docker版自动升级dev拉取)
+- 因此推荐找对应原项目最新Releases的版本
+- 如 原项目最新版本1.9.7 在commit为0fb12c7的地方进行的打包
+  ![image](https://github.com/developer-wlj/Windows-MoviePilot/assets/55836679/d0c5f884-9e0d-46a3-9044-0327903eddfb)
+  ![image](https://github.com/developer-wlj/Windows-MoviePilot/assets/55836679/53591f14-94aa-4cda-968c-c23bf97fe0ae)
+- 那就在本项目找后缀为0fb12c7发行的版本,如果找不到就向上找离0fb12c7最近的提交
   
 ### 如何运行
 Windows-MoviePilot内置Python3.11环境,需要注意是Python3.11不支持Win7及之前的老系统,还有系统必须是64位  
