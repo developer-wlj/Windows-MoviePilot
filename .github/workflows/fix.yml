@@ -193,7 +193,7 @@ jobs:
           echo 111
           echo $env:LATEST_VERSION
           # iscc /DAppVersion="$env:FIRST_VERSION.$env:HASH_VERSION" build.iss
-          C:\Users\runneradmin\AppData\Local\Temp\inno "/DMyAppVersion=$env:LATEST_VERSION" build.iss
+          C:\Users\runneradmin\AppData\Local\Temp\inno\iscc "/DMyAppVersion=$env:LATEST_VERSION" build.iss
           # $env:FIRST_VERSION = $first_version
           # $env:HASH_VERSION = $hash_version
           # echo "HASH_VERSION = $hash_version" >> $env:GITHUB_ENV
