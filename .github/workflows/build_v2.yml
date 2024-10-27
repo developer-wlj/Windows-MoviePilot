@@ -1,0 +1,221 @@
+name: V2 Build
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0/4 * * *'
+env:
+  REPO_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+  REPO: ${{ secrets.REPO }}
+
+jobs:
+  Windows-build:
+    runs-on: windows-latest
+    outputs:
+      output1: ${{ steps.Make_Python_package.outputs.KEY }}
+      output2: ${{ steps.EQ_VERSION.outputs.KEYM }}
+
+    steps:
+      - name: 版本对比
+        id: EQ_VERSION
+        run: |
+          # 发送GET请求
+          $response = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/MoviePilot/git/refs/heads/v2 | ConvertFrom-Json
+          echo $response.object.sha
+          $latest_commit_sha = $response.object.sha
+          echo $latest_commit_sha
+          # 获取倒数第二次提交的hash
+          $response1 = Invoke-WebRequest -Uri "https://api.github.com/repos/developer-wlj/MoviePilot/git/commits/$latest_commit_sha" | ConvertFrom-Json
+          $message = $response1.message
+          echo $message
+          echo "KEYM=$message" >> $env:GITHUB_OUTPUT
+          $newArray = [System.Collections.ArrayList]::new()
+          # 遍历数组中的每个对象
+          foreach ($item in $response1.parents) {
+            # 获取每个对象的sha属性值
+            $sha = $item.sha
+            # 将sha属性值添加到新数组中
+            $newArray.Add($sha)
+          }
+          $response3 = Invoke-WebRequest -Uri https://api.github.com/repos/jxxghp/MoviePilot/git/refs/heads/v2 | ConvertFrom-Json
+          $jxxghp_version=$response3.object.sha
+          echo $jxxghp_version
+          if ($newArray -contains $jxxghp_version) {
+           # 获取所有发布版本
+           $response4 = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/Windows-MoviePilot/releases | ConvertFrom-Json
+           # 筛选出预发布版本
+           $prereleases = $response4 | Where-Object { $_.prerelease -eq $true }
+           # 如果存在预发布版本，获取最新的一个
+           if ($prereleases) {
+               $response5 = $prereleases | Sort-Object -Property published_at -Descending | Select-Object -First 1
+               # 提取tag_name的值
+               $tagName = $response5.tag_name
+               echo $tagName
+               echo $jxxghp_version.Substring(0, 7)
+               if ($tagName.contains($jxxghp_version.Substring(0, 7))) {
+                 Write-Output "版本相同,无需更新"
+                 exit 1
+               } else {
+                 Write-Output "检测到新的commit 执行重新打包"
+               }
+           } else {
+               Write-Host "检测到新的commit 执行重新打包"
+           }
+          } else {
+           Write-Output "developer-wlj/MoviePilot与上游仓库有代码冲突或上游代码与本仓库版本不一致,等待定时同步"
+           exit 1
+          }
+
+      - name: pull exe code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          ref: v2
+          repository: ${{ secrets.REPO }}
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+          path: 'Inno-Setup-MoviePilot'
+          fetch-depth: 1
+
+      - name: pull server code
+        uses: actions/checkout@v4
+        with:
+          ref: v2
+          repository: developer-wlj/MoviePilot
+          path: 'MoviePilot'
+          fetch-depth: 2
+
+      - name: Init Python 3.11.4
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11.4'
+          cache: 'pip'
+
+      - name: Install dependent packages
+        run: |
+          cd MoviePilot
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          Remove-Item ".\config\app.env"
+          $hash_version=(git log -2 --pretty=format:"%h" | Select-Object -Skip 1)
+          echo $hash_version
+          echo "HASH_VERSION=$hash_version" >> $env:GITHUB_ENV
+          echo $HASH_VERSION
+          cat $env:GITHUB_ENV
+          cd app/helper
+          $extract_url = "https://raw.githubusercontent.com/jxxghp/MoviePilot-Resources/main/resources/sites.cp311-win_amd64.pyd"
+          Invoke-WebRequest -URI $extract_url -OutFile "sites.cp311-win_amd64.pyd"
+          $extract_url1 = "https://raw.githubusercontent.com/jxxghp/MoviePilot-Resources/main/resources/user.sites.bin"
+          Invoke-WebRequest -URI $extract_url1 -OutFile "user.sites.bin"
+          cd ../plugins/
+          Invoke-WebRequest -Uri "https://github.com/jxxghp/MoviePilot-Plugins/archive/refs/heads/main.zip" -OutFile "MoviePilot-Plugins-main.zip"
+          Expand-Archive -Path "MoviePilot-Plugins-main.zip" -DestinationPath "MoviePilot-Plugins-main"
+          Move-Item -Path "MoviePilot-Plugins-main/MoviePilot-Plugins-main/plugins.v2/*" -Destination . -Force
+          Remove-Item -Path "MoviePilot-Plugins-main.zip"
+          Remove-Item -Path "MoviePilot-Plugins-main" -Recurse -Force
+          Get-ChildItem -Path . -Recurse -Filter "requirements.txt" | ForEach-Object { pip install -r $_ }
+
+      - name: Download MoviePilot Frontend
+        run: |
+          $FRONTEND_VERSION = Get-Content "./MoviePilot/version.py" | Select-String "FRONTEND_VERSION" | ForEach-Object {$_.ToString().Split('=')[1] }
+          # 去除可能存在的单双引号和前后空格
+          $FRONTEND_VERSION =$FRONTEND_VERSION.Trim() -replace "'", "" -replace '"', ""
+          # 输出 FRONTEND_VERSION 的值
+          echo "FRONTEND_VERSION: $FRONTEND_VERSION"
+          mkdir MoviePilot-Frontend
+          cd MoviePilot-Frontend
+          $extract_url = "https://github.com/jxxghp/MoviePilot-Frontend/releases/download/$FRONTEND_VERSION/dist.zip"
+          Write-Host "前端 Downloading..."
+          # 下载
+          Invoke-WebRequest -URI $extract_url -OutFile dist.zip
+          dir
+          Write-Host "Extracting zip"
+          # 解压
+          Expand-Archive dist.zip -DestinationPath .
+          Move-Item -Path .\dist\* -Destination . -Force
+          Remove-Item -Path "dist.zip"
+          Remove-Item -Path "dist" -Recurse
+          # 提取tag_name的值
+          $tagName = $FRONTEND_VERSION.Substring(1)
+          echo "FIRST_VERSION=$tagName" >> $env:GITHUB_ENV
+          dir
+          echo ("LATEST_VERSION="+"$tagName.$env:HASH_VERSION") >> $env:GITHUB_ENV
+          echo $LATEST_VERSION
+
+      - name: Make Python package
+        id: Make_Python_package
+        run: |
+          echo $env:LATEST_VERSION
+          cat $env:GITHUB_OUTPUT
+          echo "KEY=$env:LATEST_VERSION" >> $env:GITHUB_OUTPUT
+          cat $env:GITHUB_OUTPUT
+          echo 999
+          $python_dir=$(python -c "import os; print(os.path.dirname(os.__file__))")
+          $python_root_dir=$python_dir.Substring(0, $python_dir.Length - 4)
+          mkdir Python3.11
+          cd Python3.11
+          cp -r $python_root_dir/* .
+
+      - name: Compile Inno Setup Script
+        run: |
+          cat $env:GITHUB_OUTPUT
+          echo 999
+          echo ${{ steps.Make_Python_package.outputs.KEY }}
+          echo 888
+          echo "${{ steps.Make_Python_package.outputs.KEY }}"
+          echo 999
+          echo $env:LATEST_VERSION
+          dir
+          Invoke-WebRequest https://jrsoftware.org/download.php/is.exe?site=1 -OutFile is.exe
+          Start-Process is.exe -ArgumentList "/VERYSILENT", "/NORETART", "/SP-","/SUPPRESSMSGBOXES","/DIR=C:\Users\runneradmin\AppData\Local\Temp\inno" -NoNewWindow -Wait
+          cd Inno-Setup-MoviePilot
+          Copy-Item -Path ".\ChineseSimplified.isl" -Destination "C:\Users\runneradmin\AppData\Local\Temp\inno\Languages"
+          echo $env:FIRST_VERSION
+          echo $env:HASH_VERSION
+          echo "$env:FIRST_VERSION.$env:HASH_VERSION"
+          echo $env:LATEST_VERSION
+          # iscc /DAppVersion="$env:FIRST_VERSION.$env:HASH_VERSION" build.iss
+          C:\Users\runneradmin\AppData\Local\Temp\inno\iscc "/DMyAppVersion=$env:LATEST_VERSION" build.iss
+
+      - name: Upload windows file
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows
+          path: .\exe\build\*.exe
+
+  Create-release:
+    permissions: write-all
+    runs-on: ubuntu-latest
+    needs: [ Windows-build ]
+    steps:
+      - name: download-artifact
+        uses: actions/download-artifact@v3
+      - name: get release_informations
+        shell: bash
+        run: |
+          cat $GITHUB_OUTPUT
+          echo $KEY
+          echo $OUTPUT1
+          pwd
+          ls -all
+        env:
+          OUTPUT1: ${{needs.Windows-build.outputs.output1}}
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OUTPUT1: ${{needs.Windows-build.outputs.output1}}
+        with:
+          tag_name: ${{needs.Windows-build.outputs.output1}}
+          release_name: ${{needs.Windows-build.outputs.output1}}
+          body: ${{needs.Windows-build.outputs.output2}}
+          draft: false
+          prerelease: true
+
+      - name: Upload release asset
+        uses: dwenegar/upload-release-assets@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          release_id: ${{ steps.create_release.outputs.id }}
+          assets_path: |
+            ./windows/
