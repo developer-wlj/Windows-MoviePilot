@@ -9,10 +9,10 @@
 ### Windows-MoviePilot-V2与Windows-MoviePilot区别
 - 去除appWindows.env配置, 恢复使用原版app.env文件
 - 去除IS_ENABLED_REMOTE_REPO参数
-- 增强几个核心exe的相关功能
+- 增强核心exe的相关功能
 - 去除显示MP实际占用的内存，恢复原版代码（原版是整体占用）
 - 支持在WEB页面上重启MP
-- v2和v1可以共存
+- v2和v1可以共存 (❗注意: v2安装时不要和v1安装在同一目录)
 
 ### 版本命名规则
 如 "1.1.0.d0a586a" 
@@ -43,13 +43,17 @@ Windows-MoviePilot-V2默认使用3333(前端)和3111端口(后端)
 
  ### 关于登录页面提示502问题
 - 如果你看到托盘栏中的MP图标未退出(需要把鼠标放到托盘栏MP图标上,Windows会自动刷新托盘栏),说明MP还未启动完成  
-- 没有托盘图标就代表启动失败  手动cmd方式启动后端查看错误 详情看上述 [关于win托盘图标自动退出问题](https://github.com/developer-wlj/Windows-MoviePilot#%E5%85%B3%E4%BA%8Ewin%E6%89%98%E7%9B%98%E5%9B%BE%E6%A0%87%E8%87%AA%E5%8A%A8%E9%80%80%E5%87%BA%E9%97%AE%E9%A2%98)
+- 没有托盘图标就代表启动失败  手动cmd方式启动后端查看错误 详情看上述 [关于win托盘图标自动退出问题](https://github.com/developer-wlj/Windows-MoviePilot/tree/v2?tab=readme-ov-file#%E5%85%B3%E4%BA%8Ewin%E6%89%98%E7%9B%98%E5%9B%BE%E6%A0%87%E8%87%AA%E5%8A%A8%E9%80%80%E5%87%BA%E9%97%AE%E9%A2%98)
 
 ### 关于看不到网络挂载的盘符问题
 - 程序默认安装目录是系统盘的Program Files (x86), 如果在此目录下 运行MP, 需管理员模式,所以Windows-MoviePilot-V2默认申请以管理员身份运行
 - 在管理员身份下运行, 是看不到普通用户挂载的盘符, 需要修改注册表(自行搜索)
 - 可以把Windows-MoviePilot-V2安装非系统盘上,然后启动MP时,取消申请的管理员身份运行,以用户身份运行
 
+### 关于WEB中的重启和托盘栏中的重启
+- WEB中的重启 在停机时会给停机信号 业内叫优雅停机 再启动python 优点: 停机时,服务中正在处理的任务 可以保证处理完成 缺点: 偶尔存在长达几分钟停止过程 期间无法被访问
+- 托盘栏中的重启 是直接杀死MP关联的python进程然后再启动python 优点: 停机速度快 缺点: 会有数据丢失的风险
+- 注意托盘栏中的退出 是直接杀死MP关联的python进程
 
  
  
