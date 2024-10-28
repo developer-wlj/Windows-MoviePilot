@@ -1,3 +1,5 @@
+### Windows-MoviePilot-V2已上线, [点我跳转](https://github.com/developer-wlj/Windows-MoviePilot/blob/v2/README.md)
+
 # Windows-MoviePilot与原版区别
 - 基于批处理转exe实现
 - 认证变量可以通过配置appWindows.env文件 进行认证
@@ -61,7 +63,3 @@ Windows-MoviePilot默认使用3000(前端)和3001端口(后端)
 - 程序默认安装目录是系统盘的Program Files (x86), 如果在此目录下 运行MP, 需管理员模式,所以Windows-MoviePilot默认申请以管理员身份运行
 - 在管理员身份下运行, 是看不到普通用户挂载的盘符, 需要修改注册表(自行搜索)
 - 可以前往[Windows-MoviePilot-Git](https://github.com/developer-wlj/Windows-MoviePilot/tree/Windows-MoviePilot-Git) 新项目运行,解决此类问题
-
-
- 
- 
