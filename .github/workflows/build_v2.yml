@@ -9,10 +9,9 @@ env:
 
 jobs:
   Windows-build:
+    permissions:
+      contents: write
     runs-on: windows-latest
-    outputs:
-      output1: ${{ steps.Make_Python_package.outputs.KEY }}
-      output2: ${{ steps.INSTALL_PACKAGES.outputs.KEYM }}
 
     steps:
       - name: 版本对比
@@ -80,7 +79,7 @@ jobs:
           fetch-depth: 2
 
       - name: Init Python 3.11.4
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11.4'
           cache: 'pip'
@@ -144,7 +143,6 @@ jobs:
         id: Make_Python_package
         run: |
           echo $env:LATEST_VERSION
-          cat $env:GITHUB_OUTPUT
           echo "KEY=$env:LATEST_VERSION" >> $env:GITHUB_OUTPUT
           cat $env:GITHUB_OUTPUT
           echo 999
@@ -156,7 +154,6 @@ jobs:
 
       - name: Compile Inno Setup Script
         run: |
-          cat $env:GITHUB_OUTPUT
           echo 999
           echo ${{ steps.Make_Python_package.outputs.KEY }}
           echo 888
@@ -175,47 +172,24 @@ jobs:
           # iscc /DAppVersion="$env:FIRST_VERSION.$env:HASH_VERSION" build.iss
           C:\Users\runneradmin\AppData\Local\Temp\inno\iscc "/DMyAppVersion=$env:LATEST_VERSION" build.iss
 
-      - name: Upload windows file
-        uses: actions/upload-artifact@v3
-        with:
-          name: windows
-          path: .\exe\build\*.exe
-
-  Create-release:
-    permissions: write-all
-    runs-on: ubuntu-latest
-    needs: [ Windows-build ]
-    steps:
-      - name: download-artifact
-        uses: actions/download-artifact@v3
-      - name: get release_informations
-        shell: bash
+      - name: Use current time
         run: |
-          cat $GITHUB_OUTPUT
-          echo $KEY
-          echo $OUTPUT1
-          pwd
-          ls -all
-        env:
-          OUTPUT1: ${{needs.Windows-build.outputs.output1}}
-      - name: Create release
-        id: create_release
-        uses: actions/create-release@latest
+          $currentUtcTime = (Get-Date).ToUniversalTime()
+          $shanghaiTimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("China Standard Time")
+          $shanghaiTime = [System.TimeZoneInfo]::ConvertTimeFromUtc($currentUtcTime, $shanghaiTimeZone)
+          $formattedShanghaiTime = $shanghaiTime.ToString("yyyyMMddHHmmss")
+          echo "Formatted time in Shanghai: $formattedShanghaiTime"
+          echo "SHANGHAI_TIMEZONE=$formattedShanghaiTime" >> $env:GITHUB_ENV
+
+      - name: Create release and upload asset
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OUTPUT1: ${{needs.Windows-build.outputs.output1}}
         with:
-          tag_name: ${{needs.Windows-build.outputs.output1}}
-          release_name: ${{needs.Windows-build.outputs.output1}}
-          body: ${{needs.Windows-build.outputs.output2}}
+          name: ${{ env.FIRST_VERSION }}.${{ env.SHANGHAI_TIMEZONE }}.${{ env.HASH_VERSION }}
+          tag_name: ${{ env.FIRST_VERSION }}.${{ env.HASH_VERSION }}
+          body: ${{ steps.INSTALL_PACKAGES.outputs.KEYM }}
           draft: false
           prerelease: true
-
-      - name: Upload release asset
-        uses: dwenegar/upload-release-assets@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          release_id: ${{ steps.create_release.outputs.id }}
-          assets_path: |
-            ./windows/
+          make_latest: false
+          files: ./exe/build/*.exe
