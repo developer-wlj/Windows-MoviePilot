@@ -8,6 +8,7 @@
 
 ### Windows-MoviePilot-V2与Windows-MoviePilot区别
 - 去除appWindows.env配置, 恢复使用原版app.env文件
+- 不支持认证变量写到app.env，需要写到系统环境变量里
 - 去除IS_ENABLED_REMOTE_REPO参数
 - 增强核心exe的相关功能
 - 去除显示MP实际占用的内存，恢复原版代码（原版是整体占用）
