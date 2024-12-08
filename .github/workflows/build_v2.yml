@@ -115,10 +115,13 @@ jobs:
       - name: Download MoviePilot Frontend
         run: |
           $FRONTEND_VERSION = Get-Content "./MoviePilot/version.py" | Select-String "FRONTEND_VERSION" | ForEach-Object {$_.ToString().Split('=')[1] }
+          $APP_VERSION = Get-Content "./MoviePilot/version.py" | Select-String "APP_VERSION" | ForEach-Object {$_.ToString().Split('=')[1] }
           # 去除可能存在的单双引号和前后空格
           $FRONTEND_VERSION =$FRONTEND_VERSION.Trim() -replace "'", "" -replace '"', ""
+          $APP_VERSION =$APP_VERSION.Trim() -replace "'", "" -replace '"', ""
           # 输出 FRONTEND_VERSION 的值
           echo "FRONTEND_VERSION: $FRONTEND_VERSION"
+          echo "APP_VERSION: $APP_VERSION"
           mkdir MoviePilot-Frontend
           cd MoviePilot-Frontend
           $extract_url = "https://github.com/jxxghp/MoviePilot-Frontend/releases/download/$FRONTEND_VERSION/dist.zip"
@@ -133,7 +136,7 @@ jobs:
           Remove-Item -Path "dist.zip"
           Remove-Item -Path "dist" -Recurse
           # 提取tag_name的值
-          $tagName = $FRONTEND_VERSION.Substring(1)
+          $tagName = $APP_VERSION.Substring(1)
           echo "FIRST_VERSION=$tagName" >> $env:GITHUB_ENV
           dir
           echo ("LATEST_VERSION="+"$tagName.$env:HASH_VERSION") >> $env:GITHUB_ENV
@@ -183,8 +186,6 @@ jobs:
 
       - name: Create release and upload asset
         uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           name: ${{ env.FIRST_VERSION }}.${{ env.SHANGHAI_TIMEZONE }}.${{ env.HASH_VERSION }}
           tag_name: ${{ env.FIRST_VERSION }}.${{ env.HASH_VERSION }}
