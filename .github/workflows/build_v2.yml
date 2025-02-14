@@ -102,8 +102,8 @@ jobs:
           cd app/helper
           $extract_url = "https://raw.githubusercontent.com/jxxghp/MoviePilot-Resources/main/resources/sites.cp311-win_amd64.pyd"
           Invoke-WebRequest -URI $extract_url -OutFile "sites.cp311-win_amd64.pyd"
-          $extract_url1 = "https://raw.githubusercontent.com/jxxghp/MoviePilot-Resources/main/resources/user.sites.bin"
-          Invoke-WebRequest -URI $extract_url1 -OutFile "user.sites.bin"
+          $extract_url1 = "https://raw.githubusercontent.com/jxxghp/MoviePilot-Resources/main/resources/user.sites.v2.bin"
+          Invoke-WebRequest -URI $extract_url1 -OutFile "user.sites.v2.bin"
           cd ../plugins/
           Invoke-WebRequest -Uri "https://github.com/jxxghp/MoviePilot-Plugins/archive/refs/heads/main.zip" -OutFile "MoviePilot-Plugins-main.zip"
           Expand-Archive -Path "MoviePilot-Plugins-main.zip" -DestinationPath "MoviePilot-Plugins-main"
