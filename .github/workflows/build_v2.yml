@@ -36,14 +36,16 @@ jobs:
           echo $jxxghp_version
           if ($newArray -contains $jxxghp_version) {
            # 获取所有发布版本
-           $response4 = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/Windows-MoviePilot/releases | ConvertFrom-Json
+#           $response4 = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/Windows-MoviePilot/releases | ConvertFrom-Json
+           $response4 = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/Windows-MoviePilot/releases/latest | ConvertFrom-Json
            # 筛选出预发布版本
-           $prereleases = $response4 | Where-Object { $_.prerelease -eq $true }
+#           $prereleases = $response4 | Where-Object { $_.prerelease -eq $true }
            # 如果存在预发布版本，获取最新的一个
            if ($prereleases) {
-               $response5 = $prereleases | Sort-Object -Property published_at -Descending | Select-Object -First 1
+#               $response5 = $prereleases | Sort-Object -Property published_at -Descending | Select-Object -First 1
                # 提取tag_name的值
-               $tagName = $response5.tag_name
+#               $tagName = $response5.tag_name
+               $tagName = $response4.tag_name
                echo $tagName
                echo $jxxghp_version.Substring(0, 7)
                if ($tagName.contains($jxxghp_version.Substring(0, 7))) {
@@ -191,6 +193,6 @@ jobs:
           tag_name: ${{ env.FIRST_VERSION }}.${{ env.HASH_VERSION }}
           body: ${{ steps.INSTALL_PACKAGES.outputs.KEYM }}
           draft: false
-          prerelease: true
-          make_latest: false
+          prerelease: false
+          make_latest: true
           files: ./exe/build/*.exe
