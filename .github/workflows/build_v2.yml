@@ -45,7 +45,7 @@ jobs:
                # $response5 = $prereleases | Sort-Object -Property published_at -Descending | Select-Object -First 1
                # 提取tag_name的值
                # $tagName = $response5.tag_name
-               $tagName = $response4.tag_name
+               $tagName = $response4.tag_name.Substring($response4.tag_name.Length - 7)
                echo $tagName
                echo $jxxghp_version.Substring(0, 7)
                if ($tagName.contains($jxxghp_version.Substring(0, 7))) {
