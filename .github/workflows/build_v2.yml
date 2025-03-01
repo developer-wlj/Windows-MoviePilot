@@ -18,7 +18,7 @@ jobs:
         run: |
           # 发送GET请求
           $response = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/MoviePilot/git/refs/heads/v2 | ConvertFrom-Json
-          echo $response.object.sha
+          # echo $response.object.sha
           $latest_commit_sha = $response.object.sha
           echo $latest_commit_sha
           # 获取倒数第二次提交的hash
@@ -28,6 +28,7 @@ jobs:
           foreach ($item in $response1.parents) {
             # 获取每个对象的sha属性值
             $sha = $item.sha
+            echo $sha
             # 将sha属性值添加到新数组中
             $newArray.Add($sha)
           }
@@ -36,15 +37,16 @@ jobs:
           echo $jxxghp_version
           if ($newArray -contains $jxxghp_version) {
            # 获取所有发布版本
-#           $response4 = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/Windows-MoviePilot/releases | ConvertFrom-Json
+           # $response4 = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/Windows-MoviePilot/releases | ConvertFrom-Json
            $response4 = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/Windows-MoviePilot/releases/latest | ConvertFrom-Json
            # 筛选出预发布版本
-#           $prereleases = $response4 | Where-Object { $_.prerelease -eq $true }
+           # $prereleases = $response4 | Where-Object { $_.prerelease -eq $true }
            # 如果存在预发布版本，获取最新的一个
-           if ($prereleases) {
-#               $response5 = $prereleases | Sort-Object -Property published_at -Descending | Select-Object -First 1
+           # if ($prereleases) {
+           if ($true) {
+               # $response5 = $prereleases | Sort-Object -Property published_at -Descending | Select-Object -First 1
                # 提取tag_name的值
-#               $tagName = $response5.tag_name
+               # $tagName = $response5.tag_name
                $tagName = $response4.tag_name
                echo $tagName
                echo $jxxghp_version.Substring(0, 7)
