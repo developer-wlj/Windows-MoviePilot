@@ -79,10 +79,10 @@ jobs:
           path: 'MoviePilot'
           fetch-depth: 2
 
-      - name: Init Python 3.11.4
+      - name: Init Python 3.12.8
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11.4'
+          python-version: '3.12.8'
           cache: 'pip'
 
       - name: Install dependent packages
@@ -152,6 +152,7 @@ jobs:
           echo 999
           $python_dir=$(python -c "import os; print(os.path.dirname(os.__file__))")
           $python_root_dir=$python_dir.Substring(0, $python_dir.Length - 4)
+          echo $python_root_dir
           mkdir Python3.11
           cd Python3.11
           cp -r $python_root_dir/* .
