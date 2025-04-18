@@ -1,0 +1,182 @@
+name: fix V1
+on:
+  workflow_dispatch:
+env:
+  REPO_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+  REPO: ${{ secrets.REPO }}
+
+jobs:
+  Windows-build:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+
+    steps:
+      - name: 版本对比
+        run: |
+          # 发送GET请求
+          $response = Invoke-WebRequest -Uri https://api.github.com/repos/developer-wlj/MoviePilot/git/refs/heads/wlj0807 | ConvertFrom-Json
+          echo $response.object.sha
+          $latest_commit_sha = $response.object.sha
+          echo $latest_commit_sha
+          echo 555
+          # 获取倒数第二次提交的hash
+          $response1 = Invoke-WebRequest -Uri "https://api.github.com/repos/developer-wlj/MoviePilot/git/commits/$latest_commit_sha" | ConvertFrom-Json
+          $newArray = [System.Collections.ArrayList]::new()
+          # 遍历数组中的每个对象
+          foreach ($item in $response1.parents) {
+            # 获取每个对象的sha属性值
+            $sha = $item.sha
+            # 将sha属性值添加到新数组中
+            $newArray.Add($sha)
+          }
+          $response = Invoke-WebRequest -Uri https://api.github.com/repos/jxxghp/MoviePilot/git/refs/heads/main | ConvertFrom-Json
+          $jxxghp_version=$response.object.sha
+          echo $jxxghp_version
+          Write-Output "执行打包"
+
+      - name: 拉取exe代码
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          ref: main
+          repository: ${{ secrets.REPO }}
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+          path: 'Inno-Setup-MoviePilot'
+          fetch-depth: 2
+
+      - name: 拉取后端代码
+        uses: actions/checkout@v4
+        with:
+          ref: wlj0807
+          repository: developer-wlj/MoviePilot
+          path: 'MoviePilot'
+          fetch-depth: 2
+
+      - name: Init Python 3.11.4
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11.4'
+          cache: 'pip'
+          run: cd MoviePilot
+
+      - name: Install dependent packages
+        id: INSTALL_PACKAGES
+        run: |
+          cd MoviePilot
+          dir
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # $src_hash=git ls-remote -h https://github.com/jxxghp/MoviePilot.git
+          # $hash=git log -1 --pretty=%H
+          # $hash_version=$src_hash.Substring(0, 7)
+          $hash_version=(git log -2 --pretty=format:"%h" | Select-Object -Skip 1)
+          echo $hash_version
+          echo "HASH_VERSION=$hash_version" >> $env:GITHUB_ENV
+          echo $HASH_VERSION
+          cat $env:GITHUB_ENV
+          cd app/helper
+          $extract_url = "https://raw.githubusercontent.com/jxxghp/MoviePilot-Resources/main/resources/sites.cp311-win_amd64.pyd"
+          Invoke-WebRequest -URI $extract_url -OutFile "sites.cp311-win_amd64.pyd"
+          $extract_url1 = "https://raw.githubusercontent.com/jxxghp/MoviePilot-Resources/main/resources/user.sites.bin"
+          Invoke-WebRequest -URI $extract_url1 -OutFile "user.sites.bin"
+          cd ../plugins/
+          Invoke-WebRequest -Uri "https://github.com/jxxghp/MoviePilot-Plugins/archive/refs/heads/main.zip" -OutFile "MoviePilot-Plugins-main.zip"
+          Expand-Archive -Path "MoviePilot-Plugins-main.zip" -DestinationPath "MoviePilot-Plugins-main"
+          Move-Item -Path "MoviePilot-Plugins-main/MoviePilot-Plugins-main/plugins/*" -Destination . -Force
+          Remove-Item -Path "MoviePilot-Plugins-main.zip"
+          Remove-Item -Path "MoviePilot-Plugins-main" -Recurse -Force
+          Get-ChildItem -Path . -Recurse -Filter "requirements.txt" | ForEach-Object { pip install -r $_ }
+
+      - name: Download MoviePilot Frontend
+        run: |
+          mkdir MoviePilot-Frontend
+          cd MoviePilot-Frontend
+          # 用于获取后端主版本号
+          $response = Invoke-WebRequest -Uri https://api.github.com/repos/jxxghp/MoviePilot/releases/latest | ConvertFrom-Json
+          # 前端打包后的下载地址
+          $extract_release = Invoke-WebRequest https://api.github.com/repos/jxxghp/MoviePilot-Frontend/releases/latest | ConvertFrom-Json
+          $extract_assets = $extract_release.assets
+          $extract_url = ""
+          Write-Host "Download zip"
+          foreach ($asset in $extract_assets) {
+            if ($asset.name -match 'dist\.zip$') {
+              $extract_url = $asset.browser_download_url
+            }
+          }
+          if (-not $extract_url) {
+            Write-Host "zip not found"
+            exit 1
+          }
+          Write-Host "前端 Downloading..."
+          # 下载
+          Invoke-WebRequest -URI $extract_url -OutFile dist.zip
+          dir
+          Write-Host "Extracting zip"
+          # 解压
+          Expand-Archive dist.zip -DestinationPath .
+          # Get-ChildItem -Path .\dist -Recurse | Copy-Item -Destination .
+          Move-Item -Path .\dist\* -Destination . -Force
+          Remove-Item -Path "dist.zip"
+          Remove-Item -Path "dist" -Recurse
+          # 提取tag_name的值
+          $tagName = $response.tag_name.Substring(1)
+          echo "FIRST_VERSION=$tagName" >> $env:GITHUB_ENV
+          dir
+          echo ("LATEST_VERSION="+"$tagName.$env:HASH_VERSION") >> $env:GITHUB_ENV
+          echo $LATEST_VERSION
+          # Write-Output "::set-output name=key::$LATEST_VERSION"
+
+      - name: Make Python package
+        id: Make_Python_package
+        run: |
+          echo $env:LATEST_VERSION
+          cat $env:GITHUB_OUTPUT
+          echo "KEY=$env:LATEST_VERSION" >> $env:GITHUB_OUTPUT
+          cat $env:GITHUB_OUTPUT
+          echo 999
+          $python_dir=$(python -c "import os; print(os.path.dirname(os.__file__))")
+          $python_root_dir=$python_dir.Substring(0, $python_dir.Length - 4)
+          mkdir Python3.11
+          cd Python3.11
+          # New-Item -Path . -Name "newfile.txt" -ItemType File
+          cp -r $python_root_dir/* .
+          dir
+
+      - name: Compile Inno Setup Script
+        run: |
+          cat $env:GITHUB_OUTPUT
+          echo 999
+          echo ${{ steps.Make_Python_package.outputs.KEY }}
+          echo 888
+          echo "${{ steps.Make_Python_package.outputs.KEY }}"
+          echo 999
+          echo $env:LATEST_VERSION
+          dir
+          # git clone https://github.com/developer-wlj/Inno-Setup-MoviePilot.git
+          Invoke-WebRequest https://jrsoftware.org/download.php/is.exe?site=1 -OutFile is.exe
+          Start-Process is.exe -ArgumentList "/VERYSILENT", "/NORETART", "/SP-","/SUPPRESSMSGBOXES","/DIR=C:\Users\runneradmin\AppData\Local\Temp\inno" -NoNewWindow -Wait
+          cd Inno-Setup-MoviePilot
+          Copy-Item -Path ".\ChineseSimplified.isl" -Destination "C:\Users\runneradmin\AppData\Local\Temp\inno\Languages"
+          echo $env:FIRST_VERSION
+          echo $env:HASH_VERSION
+          echo "$env:FIRST_VERSION.$env:HASH_VERSION"
+          # echo ("LATEST_VERSION="+"$env:FIRST_VERSION.$env:HASH_VERSION") >> $env:GITHUB_ENV
+          echo 111
+          echo $env:LATEST_VERSION
+          # iscc /DAppVersion="$env:FIRST_VERSION.$env:HASH_VERSION" build.iss
+          C:\Users\runneradmin\AppData\Local\Temp\inno\iscc "/DMyAppVersion=$env:LATEST_VERSION" build.iss
+          # $env:FIRST_VERSION = $first_version
+          # $env:HASH_VERSION = $hash_version
+          # echo "HASH_VERSION = $hash_version" >> $env:GITHUB_ENV
+
+      - name: Create release and upload asset
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ env.FIRST_VERSION }}.${{ env.HASH_VERSION }}
+          tag_name: ${{ env.FIRST_VERSION }}.${{ env.HASH_VERSION }}
+          body: ${{ steps.INSTALL_PACKAGES.outputs.KEYM }}
+          draft: false
+          prerelease: false
+          make_latest: false
+          files: ./exe/build/*.exe
