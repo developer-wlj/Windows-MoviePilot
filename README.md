@@ -1,8 +1,12 @@
-# 提要
-- 由于py低包有3.11换成3.12
-- 如安装后无法运行,或运行中出现错误
-- 请删除Python3.11目录和project\MoviePilot\app目录(删除这两个目录相当于重装)
-- 使用最新安装包重新覆盖安装下
+# 20250531版本重大变更说明
+ - 为解决smb等其他协议挂载成本地磁盘，无法在mp中看到问题
+ - 已去除申请管理员身份运行权限
+ - 此后的版本无法在Program Files (x86)或Program Files目录下直接运行，需手动右键点击以管理员身份运行
+ - 因此推荐安装到非系统盘上运行，已安装的用户，请先备份config目录（桌面MoviePilot-v2快捷图标-鼠标右键-打开文件所在的位置-打开MoviePilot目录-备份config目录），然后卸载，再重新安装到非系统中，再覆盖config目录
+# 声明
+- Exe打包,由于没有企业数字签名,所以报毒。
+- 自签名也一样，是因为证书不可信，反正都是报毒，就没搞
+- 升级安装后无法运行,或运行中出现错误，请删除Python3.11目录和project\MoviePilot\app目录(删除这两个目录相当于重装，不会覆盖config目录下用户的数据)，然后使用最新安装包重新覆盖安装下
 # Windows-MoviePilot-V2与原版V2区别
 - 基于批处理转exe实现
 - 启动速度更快 (没有数据解压的过程 )
@@ -33,9 +37,9 @@
 - 那就在本项目找后缀为0fb12c7发行的版本,如果找不到就向上找离0fb12c7最近的提交
   
 ### 如何运行
-Windows-MoviePilot-V2内置Python3.11环境,需要注意是Python3.11不支持Win7及之前的老系统,还有系统必须是64位  
+Windows-MoviePilot-V2内置Python3.12环境,需要注意是Python3.12不支持Win7及之前的老系统,还有系统必须是64位  
 Windows-MoviePilot-V2默认使用3333(前端)和3111端口(后端)
-1. 系统必须有Visual C++ Redistributable, 没有的 可点击微软开发者官网的链接https://aka.ms/vs/17/release/VC_redist.x64.exe 下载
+1. 系统必须有Visual C++ Redistributable, 没有的 可点击微软开发者官网的链接 https://aka.ms/vs/17/release/VC_redist.x64.exe 下载
 2. 双击桌面MoviePilot-V2快捷图标运行
 3. 浏览器访问 http://127.0.0.1:3333 用户名默认: admin, 密码: 第一次安装，随机生成密码并写入到日志中
 
@@ -43,7 +47,7 @@ Windows-MoviePilot-V2默认使用3333(前端)和3111端口(后端)
 - 升级安装, 会覆盖category.yaml,如果category.yaml使用默认配置,无需备份category.yaml
  
  ### 关于win托盘图标自动退出问题
- 找到桌面MoviePilot-V2图标右键-打开文件所在的位置-MoviePilot文件夹 在路径上输入cmd 并回车,在cmd窗口中输入  
+ 找到桌面MoviePilot-V2图标右键-打开文件所在的位置-打开MoviePilot文件夹 在路径上输入cmd 并回车,在cmd窗口中输入  
  `..\..\Python3.11\python .\app\main.py` 并回车，查看错误  
  如果提示Permission denied字样 cmd需管理员身份运行
 
@@ -54,7 +58,6 @@ Windows-MoviePilot-V2默认使用3333(前端)和3111端口(后端)
 ### 关于看不到网络挂载的盘符问题
 - 程序默认安装目录是系统盘的Program Files (x86), 如果在此目录下 运行MP, 需管理员模式,所以Windows-MoviePilot-V2默认申请以管理员身份运行
 - 在管理员身份下运行, 是看不到普通用户挂载的盘符, 需要修改注册表(自行搜索)
-- 可以把Windows-MoviePilot-V2安装非系统盘上,然后启动MP时,取消申请的管理员身份运行,以用户身份运行
 
 ### 关于WEB中的重启和托盘栏中的重启
 - WEB中的重启 在停机时会给停机信号 业内叫优雅停机 再启动python 优点: 停机时,服务中正在处理的任务 可以保证处理完成 缺点: 偶尔存在长达几分钟停止过程 期间无法被访问
