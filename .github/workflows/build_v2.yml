@@ -88,12 +88,39 @@ jobs:
           python-version: '3.12.8'
           cache: 'pip'
 
-      - name: Install dependent packages
-        id: INSTALL_PACKAGES
+      - name: Verify
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Update Rust
+        run: rustup update stable
+
+      - name: Verify Cargo version
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: add cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./rust/moviepilot_rust"
+
+      - name: Install Rust extension
         run: |
           cd MoviePilot
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          python -m maturin build --release -o ./tmp/wheels -m ./rust/moviepilot_rust/Cargo.toml
+          Get-ChildItem ./tmp/wheels/*.whl | ForEach-Object { pip install $_.FullName }
+          Remove-Item -Recurse -Force ./tmp
+          Remove-Item -Recurse -Force ./rust/moviepilot_rust/target
+          dir
+
+      - name: Install dependent packages
+        id: INSTALL_PACKAGES
+        run: |
+          cd MoviePilot
           $hash_version=(git log -2 --pretty=format:"%h" | Select-Object -Skip 1)
           $GIT_LOG=(git log -2 --oneline | Select-Object -Last 1)
           echo $GIT_LOG
