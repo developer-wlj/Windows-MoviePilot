@@ -1,0 +1,55 @@
+# 自动构建与发布：推送到 main/master 自动构建并上传产物；推送 v* 标签自动构建并发布 GitHub Release
+name: Build and Release
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  # 构建 Release 并上传产物（所有触发方式均执行）
+  build:
+    name: 构建 Release
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 配置 MSBuild
+        uses: microsoft/setup-msbuild@v3
+
+      - name: 构建 Release
+        run: msbuild MoviePilot-V3.csproj /p:Configuration=Release /p:Platform="x64" /restore /nologo /v:minimal
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v7
+        with:
+          name: MoviePilot-V3
+          path: |
+            bin/x64/Release/MoviePilot-V3.exe
+            bin/x64/Release/MoviePilot-V3.pdb
+          if-no-files-found: error
+
+  # 发布 GitHub Release（仅推送 v* 标签时执行）
+  release:
+    name: 发布 GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: 下载构建产物
+        uses: actions/download-artifact@v8
+        with:
+          name: MoviePilot-V3
+          path: artifact
+
+      - name: 创建 Release 并上传 exe
+        uses: softprops/action-gh-release@v3
+        with:
+          files: artifact/MoviePilot-V3.exe
+          generate_release_notes: true
