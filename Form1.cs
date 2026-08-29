@@ -21,6 +21,7 @@ namespace MoviePilot_V3
         private Icon appIcon;
         private bool allowClose; // 是否允许真正关闭（托盘"退出"菜单触发）
         private Thread pipeThread; // 命名管道监听线程：接收命令行模式（-c）发送的日志
+        private bool ignoreNextTrayUp; // 双击后待忽略的下一次 MouseUp（第二次点击的弹起，避免 toggle 再隐藏）
         private readonly bool startInTray; // 启动时驻留托盘（构造时读取配置）
         private bool firstShowHandled; // 首次显示请求是否已处理（仅拦截一次，之后 Show() 正常显示）
         private bool loadDone; // Form1_Load 是否已执行（首次显示被吞掉时手动触发；用户 Show() 再次触发 Load 事件时跳过）
@@ -184,13 +185,25 @@ namespace MoviePilot_V3
                 Text = AppConfig.APP_NAME + " v" + AppConfig.APP_VERSION + " - 运行中",
                 Visible = true
             };
-            // 左键单击切换窗口显示/隐藏；右键单击仅弹出托盘菜单（ContextMenuStrip 默认行为，不处理）
+            // 左键单击切换窗口显示/隐藏；右键单击仅弹出托盘菜单（ContextMenuStrip 默认行为，不处理）。
+            // 单击立即响应（不加延迟）；双击由 WM_LBUTTONDBLCLK 触发 DoubleClick（先于第二次点击的 MouseUp）：
+            // 置 ignoreNextTrayUp 吞掉该次 MouseUp，双击收敛为显示——窗口隐藏时双击：第一次点击已显示、
+            // 第二次被吞掉，无闪烁；窗口显示时双击会先隐藏再恢复（罕见场景，避免拖慢单击响应）
             notifyIcon.MouseUp += (s, e) =>
             {
-                if (e.Button == MouseButtons.Left)
+                if (e.Button != MouseButtons.Left) return;
+                if (ignoreNextTrayUp)
                 {
-                    ToggleWindow();
+                    ignoreNextTrayUp = false;
+                    return;
                 }
+                ToggleWindow();
+            };
+            // 双击语义：直接显示主窗口（不 toggle），并吞掉第二次点击的 MouseUp
+            notifyIcon.DoubleClick += (s, e) =>
+            {
+                ignoreNextTrayUp = true;
+                ShowWindow();
             };
 
             // 托盘菜单（不显示左侧对勾/选中标记区域，菜单项不带键盘助记符）
@@ -439,20 +452,16 @@ namespace MoviePilot_V3
         {
             if (Visible)
             {
-                // 窗口可见：先补发隐藏期间缓存的日志，再追加当前行（隐藏期间零控件操作）
-                if (pendingLogs.Length > 0)
-                {
-                    txtLog.AppendText(pendingLogs.ToString());
-                    pendingLogs.Clear();
-                }
-                txtLog.AppendText(line);
+                // 窗口可见：先补发隐藏期间缓存的日志，再追加当前批（隐藏期间零控件操作）
+                FlushPendingLogs();
+                txtLog.AppendText(text);
                 txtLog.SelectionStart = txtLog.TextLength;
                 txtLog.ScrollToCaret();
             }
             else
             {
                 // 窗口隐藏：只缓存不操作控件，显示时一次性补发（见上）
-                pendingLogs.Append(line);
+                pendingLogs.Append(text);
                 if (pendingLogs.Length > MaxPendingLogChars)
                 {
                     pendingLogs.Remove(0, pendingLogs.Length - MaxPendingLogChars / 2);
@@ -463,6 +472,14 @@ namespace MoviePilot_V3
             {
                 txtLog.Text = txtLog.Text.Substring(txtLog.TextLength - MaxLogChars / 2);
             }
+        }
+
+        /// 补发窗口隐藏期间缓存的日志（仅 UI 线程调用）。
+        private void FlushPendingLogs()
+        {
+            if (pendingLogs.Length == 0) return;
+            txtLog.AppendText(pendingLogs.ToString());
+            pendingLogs.Clear();
         }
 
         /// 启动命名管道服务器：命令行模式（-c）连接后把日志实时显示到运行日志区。
@@ -632,6 +649,9 @@ namespace MoviePilot_V3
             // 显示前重新布局，确保按钮行位置正确
             LayoutButtonRow();
             Show();
+            // 补发窗口隐藏期间缓存的日志：仅靠日志到达时补发的话，显示后若无新日志，
+            // 隐藏期间的日志会一直躺在缓存里，日志区看似空白
+            FlushPendingLogs();
             // 仅当窗口处于最小化状态（点最小化按钮到任务栏后从托盘恢复）时按最小化前的状态还原：
             // 普通窗口还原普通、最大化窗口还原最大化；无条件设置 Normal 会把最大化窗口还原为
             // 最大化前的尺寸，且 Show() 先以最大化显示再缩小，产生一闪而过的跳动
