@@ -50,6 +50,89 @@ namespace MoviePilot_V3
             SetThreadExecutionState(enabled ? (ES_CONTINUOUS | ES_SYSTEM_REQUIRED) : ES_CONTINUOUS);
         }
 
+        // Windows 关机/重启拦截：WM_QUERYENDSESSION 返回 FALSE 阻止本次关机请求，
+        // 同时 ShutdownBlockReasonCreate 在系统关机界面（“正在阻止关机”对话框）显示友好原因；
+        // 转入后台停止服务并退出进程后，系统检测到无阻止者自动继续关机/重启流程
+        private const int WM_QUERYENDSESSION = 0x0011;
+        private const int WM_ENDSESSION = 0x0016;
+        private const int ENDSESSION_LOGOFF = unchecked((int)0x80000000);
+        private bool shutdownCleanupStarted; // 防重复：系统超时后会重发 WM_QUERYENDSESSION
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern bool ShutdownBlockReasonCreate(IntPtr hWnd, string reason);
+        [DllImport("user32.dll")]
+        private static extern bool ShutdownBlockReasonDestroy(IntPtr hWnd);
+
+        // 关机优先级：SetProcessShutdownParameters 把面板提到应用最高档 0x300（所有进程默认 0x280）。
+        // 系统关机/重启时 csrss 按优先级从高到低向各进程发通知：控制台进程（nginx/python）收到
+        // CTRL_SHUTDOWN_EVENT 默认直接退出，且其通知先于面板的 WM_QUERYENDSESSION，导致面板拦截时
+        // 服务已被系统提前结束；面板提到 0x300 后最先收到 WM_QUERYENDSESSION，此时服务进程仍存活，
+        // 优雅停止链路（WMI 查询 + AttachConsole + Ctrl+Break）才能正常生效
+        [DllImport("kernel32.dll")]
+        private static extern bool SetProcessShutdownParameters(uint dwLevel, uint dwFlags);
+        private const uint SHUTDOWN_NORETRY = 0x00000001; // 终止失败时不弹重试对话框
+        private const uint SHUTDOWN_LEVEL_FIRST = 0x300; // 0x300-0x3FF：应用保留的第一关闭范围
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_QUERYENDSESSION)
+            {
+                // lParam 高位 ENDSESSION_LOGOFF 表示注销登录：不拦截，放行
+                bool isLogoff = (unchecked((int)m.LParam) & ENDSESSION_LOGOFF) != 0;
+                if (!isLogoff && !shutdownCleanupStarted)
+                {
+                    shutdownCleanupStarted = true;
+                    // 在系统关机界面显示友好提示（必须配合本消息返回 FALSE 才生效）
+                    try { ShutdownBlockReasonCreate(Handle, "正在停止 MoviePilot 服务并保存配置，请稍候..."); } catch { }
+                    Log("检测到 Windows 关机/重启，正在停止服务并退出...");
+                    HandleShutdownCleanup();
+                }
+                // 返回 FALSE：阻止本次关机请求（后台清理完成后进程退出，系统自动继续关机）
+                m.Result = IntPtr.Zero;
+                return;
+            }
+            if (m.Msg == WM_ENDSESSION)
+            {
+                // 系统已确认关机（未走阻止路径的兜底）：立即退出，避免拖慢系统关机
+                if (m.WParam != IntPtr.Zero)
+                {
+                    Environment.Exit(0);
+                }
+            }
+            base.WndProc(ref m);
+        }
+
+        /// 关机/重启后台清理：停止服务（Ctrl+Break 优雅停止）→ 终止下载/命令子进程 →
+        /// 恢复睡眠设置 → 移除阻止原因 → 退出进程，让系统自动继续关机流程。
+        private void HandleShutdownCleanup()
+        {
+            // 停止状态刷新定时器：避免清理期间并发启动 PowerShell 进程查询
+            try { statusTimer.Stop(); } catch { }
+            // 关机清理日志同时写入 logs\shutdown.log：面板马上退出，日志区内容会丢失，
+            // 写文件便于重启后排查（每次关机/重启追加，保留最近一次完整链路）
+            Action<string> shutdownLog = msg =>
+            {
+                try
+                {
+                    // 目录可能不存在（如首次运行/日志被清理）：先创建保证可写
+                    Directory.CreateDirectory(AppConfig.LOGS_DIR);
+                    File.AppendAllText(Path.Combine(AppConfig.LOGS_DIR, "shutdown.log"),
+                        "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "] " + msg + Environment.NewLine);
+                }
+                catch { }
+                Log(msg);
+            };
+            Task.Run(() =>
+            {
+                // 关机/重启清理：WMI 进程内查询替代 PowerShell，避免关机序列中启动子进程报错弹窗
+                try { ServiceManager.StopServices(shutdownLog, useWmi: true); } catch (Exception ex) { shutdownLog("关机停止服务异常: " + ex.Message); }
+                try { EnvironmentSetup.KillActiveProcesses(); } catch { }
+                try { SetSleepPrevention(false); } catch { }
+                try { ShutdownBlockReasonDestroy(Handle); } catch { }
+                Environment.Exit(0);
+            });
+        }
+
         /// 面板单例：Services 层静态日志入口（Form1.Debug / Form1.Error）使用；
         /// 面板实例创建前（命令行模式）为 null，静态入口静默丢弃
         public static Form1 Instance { get; private set; }
@@ -58,6 +141,10 @@ namespace MoviePilot_V3
         {
             Instance = this;
             startInTray = AppSettings.Current.StartMinimizedToTray;
+
+            // 关机优先级提到应用最高档：确保关机/重启时面板先于 nginx/python 收到系统通知，
+            // 服务进程仍存活时执行优雅停止（机制详见 P/Invoke 声明处注释）
+            try { SetProcessShutdownParameters(SHUTDOWN_LEVEL_FIRST, SHUTDOWN_NORETRY); } catch { }
 
             // 防白屏闪烁：所有绘制并入 WM_PAINT（WM_ERASEBKGND 不再用系统默认白背景擦除）；
             // 背景色由 OnPaintBackground 全客户区深色填充；

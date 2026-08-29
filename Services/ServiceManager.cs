@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Management;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -24,6 +25,11 @@ namespace MoviePilot_V3.Services
 
         // 首次超时后再次发送信号的宽限期（毫秒）
         private const int GracefulExitRetryMs = 5000;
+
+        // 内存记录：本进程（面板/命令行模式）启动过的 Python 后端 PID，供关机场景
+        // WMI 查询合并兜底（仅本次运行有效，面板重启后不保留，依赖查询兜底）
+        private static int launchedBackendPid;
+        private static readonly object BackendPidLock = new object();
 
         // 控制台 Ctrl 事件处理程序委托（收到 Ctrl+C / Ctrl+Break 时被系统回调）
         private delegate bool ConsoleCtrlHandlerDelegate(uint dwCtrlType);
@@ -91,7 +97,8 @@ namespace MoviePilot_V3.Services
             return pids.Min();
         }
 
-        /// 获取服务对应的 PID 文件路径：nginx 为 logs/nginx.pid，Python 为 config/logs/mp.pid。
+        /// 获取服务对应的 PID 文件路径：nginx 为 logs/nginx.pid（python 后端不写 PID 文件，
+        /// 进程为动态查询，此方法仅 nginx 使用）。
         private static string GetPidFile(string processName)
         {
             return processName.Equals("nginx", StringComparison.OrdinalIgnoreCase)
@@ -160,6 +167,106 @@ namespace MoviePilot_V3.Services
             return pids;
         }
 
+        /// 记录本进程（面板/命令行模式）启动过的后端 PID：仅内存保存，供关机场景 WMI
+        /// 查询合并兜底；面板重启后不保留，后端仍在运行时依赖 WMI 查询兜底。
+        private static void RecordBackendPid(int pid)
+        {
+            lock (BackendPidLock)
+            {
+                launchedBackendPid = pid;
+            }
+        }
+
+        /// 关机/重启场景的进程查询：WMI 进程内查询（不启动任何子进程，避免关机序列中
+        /// 拉起 PowerShell 报错弹窗），按命令行特征匹配本面板后端，并合并本进程启动过的
+        /// 后端 PID（双通道取并集，均做存活验证）；WMI 连接使用后立即释放，仅关机时调用
+        /// 一两次，句柄开销可忽略。
+        private static List<int> GetBackendPythonPidsWmi(Action<string> log)
+        {
+            List<int> pids = new List<int>();
+            int wmiMatched = 0;
+            int pythonTotal = 0;
+            try
+            {
+                // 按命令行特征匹配：可执行文件为运行版本的 python（venv launcher 最终拉起的
+                // 进程是基础解释器，命令行不含 venv 路径）且入口为对应版本目录的 app\main.py，
+                // 与 PowerShell 查询的匹配规则一致；pythonTotal 统计全部 python.exe（区分
+                // “系统无 python 进程”与“有但命令行不匹配”两种情况）
+                const string wql = "SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = 'python.exe'";
+                using (ManagementObjectSearcher searcher = new ManagementObjectSearcher(wql))
+                {
+                    foreach (ManagementObject mo in searcher.Get())
+                    {
+                        using (mo)
+                        {
+                            try
+                            {
+                                string cmd = Convert.ToString(mo["CommandLine"]);
+                                int pid = Convert.ToInt32(mo["ProcessId"]);
+                                if (pid > 0 && cmd != null)
+                                {
+                                    pythonTotal++;
+                                    if (cmd.IndexOf(AppConfig.BIN_DIR, StringComparison.OrdinalIgnoreCase) >= 0 &&
+                                        cmd.IndexOf("app\\main.py", StringComparison.OrdinalIgnoreCase) >= 0)
+                                    {
+                                        pids.Add(pid);
+                                        wmiMatched++;
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // 查询失败（如 WMI 服务不可用）时按无进程处理，调用方静默跳过
+                log("关机查询后端进程失败(WMI): " + ex.Message);
+                Debug.WriteLine("WMI 查询 Python 后端进程失败: " + ex.Message);
+            }
+
+            // 合并本进程启动过的后端 PID（WMI 查询失败 / 漏查时兜底，验证存活防 PID 复用）
+            int launched;
+            lock (BackendPidLock)
+            {
+                launched = launchedBackendPid;
+            }
+            if (launched > 0)
+            {
+                if (IsPythonProcessAlive(launched))
+                {
+                    pids.Add(launched);
+                }
+                else
+                {
+                    log("内存 PID " + launched + " 已失效（进程不存在或非 python.exe）");
+                }
+            }
+            log("关机查询后端进程: 系统 python.exe 共 " + pythonTotal + " 个, WMI 命中 " + wmiMatched + " 个, 内存 PID " + (launched > 0 ? launched.ToString() : "无") + ", 共 " + pids.Count + " 个候选");
+            return pids;
+        }
+
+        /// 验证 PID 对应进程是否存在且为 python.exe（防 PID 复用误判）。
+        private static bool IsPythonProcessAlive(int pid)
+        {
+            try
+            {
+                using (Process p = Process.GetProcessById(pid))
+                {
+                    return "python".Equals(p.ProcessName, StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            catch (ArgumentException)
+            {
+                return false; // 进程不存在
+            }
+            catch (InvalidOperationException)
+            {
+                return false; // 进程已退出
+            }
+        }
+
         /// 生成服务状态文本（Nginx / Python）。
         public static string GetStatusText()
         {
@@ -184,8 +291,9 @@ namespace MoviePilot_V3.Services
             if (!IsRunning("nginx"))
             {
                 string nginxConf = Path.Combine(AppConfig.NGINX_CONFIG_DIR, "nginx.conf");
-                StartProcess(Path.Combine(AppConfig.NGINX_DIR, "nginx.exe"), "-c \"" + nginxConf + "\"", AppConfig.NGINX_DIR, envPath);
-                log("Nginx 已启动");
+                int nginxPid = 0;
+                StartProcess(Path.Combine(AppConfig.NGINX_DIR, "nginx.exe"), "-c \"" + nginxConf + "\"", AppConfig.NGINX_DIR, envPath, onStarted: pid => nginxPid = pid);
+                log("Nginx 已启动 (PID " + nginxPid + ")");
                 Thread.Sleep(500);
             }
             else
@@ -244,9 +352,14 @@ namespace MoviePilot_V3.Services
                         string args = "\"" + entryFile + "\"" + (extraArgs != null ? " " + extraArgs : "");
                         // 注入 PORT 环境变量：后端监听端口与面板配置（nginx upstream）保持一致；
                         // 同时注入代理环境变量（配置了代理时），后端网络请求与 git / curl / pip 走同一代理
-                        StartProcess(pythonExe, args, AppConfig.CurrentBackendDir, envPath, AppSettings.Current.BackendPort, true);
+                        int pythonPid = 0;
+                        StartProcess(pythonExe, args, AppConfig.CurrentBackendDir, envPath, AppSettings.Current.BackendPort, true,
+                            pid => { pythonPid = pid; RecordBackendPid(pid); });
+                        // 打印 PID 供与任务管理器实际进程对比（venv launcher 启动真实解释器后自身会退出，
+                        // 此处可能是 launcher 的 PID 而非最终运行的解释器 PID）
                         log("Python 后端已启动: " + Path.GetFileName(entryFile) + (extraArgs != null ? " " + extraArgs : "") +
-                            (pythonExe.IndexOf(AppConfig.CurrentVenvDir, StringComparison.OrdinalIgnoreCase) >= 0 ? "（虚拟环境）" : ""));
+                            (pythonExe.IndexOf(AppConfig.CurrentVenvDir, StringComparison.OrdinalIgnoreCase) >= 0 ? "（虚拟环境）" : "") +
+                            " (PID " + pythonPid + ")");
                         Thread.Sleep(1000);
                     }
                     else
@@ -263,15 +376,17 @@ namespace MoviePilot_V3.Services
             log("所有服务启动完成");
         }
 
-        /// 停止全部服务（nginx 用官方 -s quit；python 按 config/logs/mp.pid 停止对应进程）。
-        public static void StopServices(Action<string> log)
+        /// 停止全部服务（nginx 用官方 -s quit；python 先查询后端进程 PID，再发送 Ctrl+Break
+        /// 优雅退出；useWmi 为 true 时（关机/重启清理场景）改用 WMI 进程内查询，避免在
+        /// 关机序列中启动 PowerShell 子进程报错弹窗）。
+        public static void StopServices(Action<string> log, bool useWmi = false)
         {
             log("正在停止服务...");
 
-            RunTaskKill("nginx.exe", log);
+            RunTaskKill("nginx.exe", log, useWmi);
             log("Nginx 已停止");
 
-            RunTaskKill("python.exe", log);
+            RunTaskKill("python.exe", log, useWmi);
             log("Python 已停止");
 
             // 清理 nginx 的 PID 文件（服务已退出，不残留状态记录）
@@ -289,7 +404,7 @@ namespace MoviePilot_V3.Services
         /// 启动进程，并注入自定义 PATH 环境变量；port 非空时同时注入 PORT（MoviePilot 后端监听端口，
         /// 与 nginx upstream 对齐，环境变量优先于默认值 3001）；injectProxy 为 true 且配置了代理时
         /// 注入代理环境变量（Python 后端专用，网络请求与 git / curl / pip 走同一代理）。
-        private static void StartProcess(string fileName, string arguments, string workingDir, string envPath, int? port = null, bool injectProxy = false)
+        private static void StartProcess(string fileName, string arguments, string workingDir, string envPath, int? port = null, bool injectProxy = false, Action<int> onStarted = null)
         {
             ProcessStartInfo psi = new ProcessStartInfo
             {
@@ -311,9 +426,11 @@ namespace MoviePilot_V3.Services
             {
                 InjectProxyEnvironment(psi);
             }
-            // 启动后立即释放 Process 对象（不影响子进程运行）：不持有引用避免句柄泄漏
+            // 启动后立即释放 Process 对象（不影响子进程运行）：不持有引用避免句柄泄漏；
+            // 回调拿到子进程 PID（供内存记录，关机场景 WMI 查询的补充）
             using (Process p = Process.Start(psi))
             {
+                if (p != null && onStarted != null) onStarted(p.Id);
             }
         }
 
@@ -342,28 +459,63 @@ namespace MoviePilot_V3.Services
             psi.EnvironmentVariables["no_proxy"] = noProxy;
         }
 
-        /// 停止进程：nginx 用官方 -s quit；python 后端按当前运行版本的 BACKEND_DIR\config\logs\mp.pid
-        /// 获取具体进程，先发送 Ctrl+Break 停机信号，等待其优雅退出（如 Django runserver 收到后触发
-        /// KeyboardInterrupt 正常关闭），首次宽限期超时后再次发信号，最终仍不退出才强制结束。
-        /// 不按进程名匹配，避免误杀系统其他 python 进程；pid 文件缺失或进程已退出时静默跳过。
-        private static void RunTaskKill(string imageName, Action<string> log)
+        /// 停止进程：nginx 用官方 -s quit；python 后端先按命令行特征查询后端进程（平时用
+        /// PowerShell，关机/重启清理场景 useWmi=true 时用 WMI 进程内查询），再附加到其控制台
+        /// 发送 Ctrl+Break 停机信号，等待优雅退出（后端收到后触发正常关闭流程），首次宽限期
+        /// 超时后再次发信号，最终仍不退出才强制结束。不按进程名匹配，避免误杀系统其他
+        /// python 进程；未查询到进程或进程已退出时静默跳过。
+        private static void RunTaskKill(string imageName, Action<string> log, bool useWmi = false)
         {
-            // nginx：官方优雅停止命令（-c 与启动保持一致，确保找到运行实例的 pid 文件）
+            // nginx：平时用官方优雅停止命令（-c 与启动保持一致，确保找到运行实例的 pid 文件）；
+            // 关机/重启清理场景不启动子进程（关机序列中控制台子系统可能已不可用，此时启动
+            // nginx.exe 会报 0xc0000142 DLL 初始化失败），直接按 PID 文件强制结束——
+            // nginx 无数据库与状态需落盘，Kill 无副作用
             if (imageName.Equals("nginx.exe", StringComparison.OrdinalIgnoreCase))
             {
-                string envPath = AppConfig.BuildEnvPath();
-                string nginxConf = Path.Combine(AppConfig.NGINX_CONFIG_DIR, "nginx.conf");
-                if (File.Exists(Path.Combine(AppConfig.NGINX_DIR, "logs", "nginx.pid"))) {
-                    StartProcess(Path.Combine(AppConfig.NGINX_DIR, "nginx.exe"), "-c \"" + nginxConf + "\" -s quit", AppConfig.NGINX_DIR, envPath);
+                string pidFile = Path.Combine(AppConfig.NGINX_DIR, "logs", "nginx.pid");
+                if (File.Exists(pidFile))
+                {
+                    try
+                    {
+                        if (useWmi)
+                        {
+                            int pid;
+                            if (int.TryParse(File.ReadAllText(pidFile).Trim(), out pid) && pid > 0)
+                            {
+                                using (Process nginxProc = Process.GetProcessById(pid))
+                                {
+                                    nginxProc.Kill();
+                                    nginxProc.WaitForExit(3000);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            string envPath = AppConfig.BuildEnvPath();
+                            string nginxConf = Path.Combine(AppConfig.NGINX_CONFIG_DIR, "nginx.conf");
+                            StartProcess(Path.Combine(AppConfig.NGINX_DIR, "nginx.exe"), "-c \"" + nginxConf + "\" -s quit", AppConfig.NGINX_DIR, envPath);
+                            Thread.Sleep(500);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // nginx 停止失败不中断后续服务停止（关机场景尤其要保证 python 后端能优雅退出）
+                        log("停止 Nginx 失败: " + ex.Message);
+                    }
                 }
-                Thread.Sleep(500);
                 return;
             }
 
-            // Python 后端：PowerShell 按命令行特征查询指定版本的后端进程（可执行文件为
-            // runtime\Python3.14.7\python.exe（T 版为 Python3.14.7t）且命令行入口为对应版本目录的 app\main.py）
-            List<int> pids = GetBackendPythonPids();
-            if (pids.Count == 0) return;
+            // Python 后端：按命令行特征查询本面板的后端进程（可执行文件为运行版本的
+            // python.exe 且命令行入口为对应版本目录的 app\main.py）；平时用 PowerShell 查询，
+            // 关机/重启清理场景用 WMI 进程内查询（不启动子进程，避免关机序列中报错弹窗）
+            List<int> pids = useWmi ? GetBackendPythonPidsWmi(log) : GetBackendPythonPids();
+            if (pids.Count == 0)
+            {
+                log("未查询到后端进程，跳过优雅停止（进程将随系统关机强制结束）");
+                return;
+            }
+            log("停止后端: 候选进程 " + pids.Count + " 个 (PID " + string.Join(",", pids) + ")");
 
             Process p = null;
             try
@@ -385,6 +537,7 @@ namespace MoviePilot_V3.Services
                 bool graceful = false;
                 if (AttachConsole((uint)p.Id))
                 {
+                    log("停止后端: 已附加控制台 (PID " + p.Id + ")");
                     // 注册 Ctrl 处理程序（返回 true 表示已处理），防止面板自身被 Ctrl+Break 默认终止
                     SetConsoleCtrlHandler(ConsoleCtrlHandlerProc, true);
 
@@ -403,6 +556,11 @@ namespace MoviePilot_V3.Services
                     // 等待信号分发完全结束再注销处理程序
                     Thread.Sleep(500);
                     SetConsoleCtrlHandler(ConsoleCtrlHandlerProc, false);
+                    log(graceful ? "停止后端: Ctrl+Break 后优雅退出完成" : "停止后端: 两次信号后仍未退出，转强制结束");
+                }
+                else
+                {
+                    log("停止后端: 附加控制台失败 (错误码 " + Marshal.GetLastWin32Error() + ")，转强制结束");
                 }
 
                 if (!graceful)
