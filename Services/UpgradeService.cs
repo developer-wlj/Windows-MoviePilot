@@ -512,18 +512,19 @@ namespace MoviePilot_V3.Services
                 return "强制签出失败，当前 HEAD 与官方标签不一致 (" + ShortHash(head) + ")，请查看日志。";
             }
             log("已强制签出官方 " + latestTag + "，本地 cherry-pick 已全部丢弃");
-            // 已回退官方纯净版（丢弃补丁）：清除上次补丁同步时间记录（last_rebase_patch_time），
-            // 否则旧记录会让下次 HasNewPatches 在补丁分支无新提交时误判“无新补丁”而跳过补丁；
-            // 清空后按“未记录（首次）”处理，下次升级/启动更新会重新拉取并并入补丁
-            AppSettings.Current.LastRebasePatchTime = "";
+            // 已回退官方纯净版（丢弃补丁）：清除当前版本目录的补丁同步时间记录
+            // （last_rebase_patch_time_v3/_t），否则旧记录会让下次 HasNewPatches 在补丁分支
+            // 无新提交时误判“无新补丁”而跳过补丁；清空后按“未记录（首次）”处理，下次升级/
+            // 启动更新会重新拉取并并入补丁
+            AppSettings.Current.CurrentLastRebasePatchTime = "";
             AppSettings.Current.Save();
             return null;
         }
 
         /// 判断补丁分支（v3-rebase）是否有新补丁：拉取补丁分支（gitee 源优先，wlj 源备用），
-        /// 取远程最新 rebase 提交的提交时间（committer 时间——重做/amend 补丁会更新），与
-        /// app.ini 记录的“上次成功同步的补丁提交时间”对比，远程时间更新即有新补丁。
-        /// 无记录（从未同步过）视为有新补丁。
+        /// 取远程最新 rebase 提交的提交时间（committer 时间——重做/amend 补丁会更新），与当前
+        /// 版本目录在 app.ini 记录的“上次成功同步的补丁提交时间”对比（v3/V3T 分开记录，
+        /// 切换版本互不污染），远程时间更新即有新补丁。无记录（该目录从未同步过）视为有新补丁。
         private static bool HasNewPatches(string gitExe, string envPath, Action<string> log)
         {
             // 拉取补丁分支（与 ApplyRebasePatches 相同：双源回退）
@@ -557,7 +558,7 @@ namespace MoviePilot_V3.Services
 
             DateTime remoteTime = UnixTimeToLocal(remoteUnix);
             DateTime lastTime;
-            if (!DateTime.TryParse(AppSettings.Current.LastRebasePatchTime, out lastTime))
+            if (!DateTime.TryParse(AppSettings.Current.CurrentLastRebasePatchTime, out lastTime))
             {
                 log("未记录补丁同步时间（首次），需要同步补丁");
                 return true;
@@ -863,8 +864,8 @@ namespace MoviePilot_V3.Services
         /// <summary>
         /// 从 gitee 补丁仓库（vueconfig/MoviePilot）的 v3-rebase 分支 cherry-pick 标题含 rebase
         /// 的提交到本地 v3 分支，每个补丁生成一个本地 rebase 提交；已应用过的补丁自动跳过（幂等）。
-        /// 成功后把补丁分支最新提交时间记录到 app.ini（last_rebase_patch_time），供下次升级
-        /// 时间对比判断是否有新补丁。
+        /// 成功后把补丁分支最新提交时间记录到当前版本目录的 app.ini 记录
+        /// （last_rebase_patch_time_v3/_t），供下次升级时间对比判断是否有新补丁。
         /// 任何 Git 源克隆/更新后都会执行，保证本地代码带补丁。
         /// 返回错误信息，null 表示成功（无补丁提交也视为成功）。
         /// </summary>
@@ -926,9 +927,10 @@ namespace MoviePilot_V3.Services
             return null;
         }
 
-        /// 把补丁分支（v3-rebase）最新 rebase 提交的提交时间记录到 app.ini（last_rebase_patch_time）。
-        /// 在补丁同步成功（无论补丁是本次应用还是已存在跳过）后调用：记录的是“已同步到的补丁
-        /// 时间点”，下次升级远程提交时间不更新即相等，视为无新补丁，避免重复重建。
+        /// 把补丁分支（v3-rebase）最新 rebase 提交的提交时间记录到 app.ini（当前版本目录的
+        /// last_rebase_patch_time_v3/_t）。在补丁同步成功（无论补丁是本次应用还是已存在跳过）
+        /// 后调用：记录的是“已同步到的补丁时间点”，下次升级远程提交时间不更新即相等，
+        /// 视为无新补丁，避免重复重建。
         private static void RecordRebaseSyncTime(string gitExe, string envPath)
         {
             string ctOutput = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" log -1 -i --grep=rebase --format=%ct FETCH_HEAD",
@@ -939,7 +941,7 @@ namespace MoviePilot_V3.Services
             {
                 return; // 获取失败不写记录（下次重新检测）
             }
-            AppSettings.Current.LastRebasePatchTime = UnixTimeToLocal(remoteUnix).ToString("yyyy-MM-dd HH:mm:ss");
+            AppSettings.Current.CurrentLastRebasePatchTime = UnixTimeToLocal(remoteUnix).ToString("yyyy-MM-dd HH:mm:ss");
             AppSettings.Current.Save();
         }
 

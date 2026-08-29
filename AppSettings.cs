@@ -60,8 +60,22 @@ namespace MoviePilot_V3
         public int ProxyPort { get; set; } = 0;
 
         // 上次成功同步补丁（v3-rebase）时补丁分支最新提交的时间（"yyyy-MM-dd HH:mm:ss"），
-        // 升级时与远程补丁提交时间对比，判断是否有新补丁；空表示从未同步过
-        public string LastRebasePatchTime { get; set; } = "";
+        // 按运行版本目录分开记录（v3 / V3T 各一个）：两个目录的补丁同步进度互不污染，
+        // 避免 A 目录同步了新补丁后，切换到的 B 目录（补丁落后）被共用旧记录误判“无新补丁”而漏补丁；
+        // 空表示该目录从未同步过
+        public string LastRebasePatchTimeV3 { get; set; } = "";
+        public string LastRebasePatchTimeT { get; set; } = "";
+
+        /// 按当前运行版本（MoviePilot-V3 / MoviePilot-V3-T）读写对应目录的补丁同步时间记录
+        public string CurrentLastRebasePatchTime
+        {
+            get { return AppConfig.IsTVersion ? LastRebasePatchTimeT : LastRebasePatchTimeV3; }
+            set
+            {
+                if (AppConfig.IsTVersion) LastRebasePatchTimeT = value;
+                else LastRebasePatchTimeV3 = value;
+            }
+        }
 
         /// 配置文件完整路径（BASE_DIR\config\app.ini）
         public static string ConfigPath
@@ -180,9 +194,15 @@ namespace MoviePilot_V3
                                     s.ProxyPort = pp;
                                 }
                                 break;
-                            case "last_rebase_patch_time":
-                                s.LastRebasePatchTime = value;
+                            case "last_rebase_patch_time_v3":
+                                s.LastRebasePatchTimeV3 = value;
                                 break;
+                            case "last_rebase_patch_time_t":
+                                s.LastRebasePatchTimeT = value;
+                                break;
+                            // 旧版全局记录 last_rebase_patch_time 不迁移：无法区分归属哪个版本目录，
+                            // 沿用可能让补丁落后的目录误判“无新补丁”而漏补丁；忽略后按“未记录（首次）”
+                            // 处理，首次升级会触发一次幂等的重建+重打补丁，安全不漏
                         }
                     }
                 }
@@ -219,7 +239,8 @@ namespace MoviePilot_V3
                 sb.AppendLine("proxy_type=" + ProxyType);
                 sb.AppendLine("proxy_host=" + ProxyHost);
                 sb.AppendLine("proxy_port=" + ProxyPort);
-                sb.AppendLine("last_rebase_patch_time=" + LastRebasePatchTime);
+                sb.AppendLine("last_rebase_patch_time_v3=" + LastRebasePatchTimeV3);
+                sb.AppendLine("last_rebase_patch_time_t=" + LastRebasePatchTimeT);
                 File.WriteAllText(ConfigPath, sb.ToString(), Utf8NoBom);
             }
             catch (Exception ex)

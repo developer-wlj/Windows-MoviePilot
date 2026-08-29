@@ -150,8 +150,8 @@ namespace MoviePilot_V3
                         ServiceManager.StopServices(log);
                         break;
                     case "restart":
-                        // 特例：app.env 中 MOVIEPILOT_AUTO_UPDATE=release 时，执行启动检查更新并启动
-                        if (IsReleaseAutoUpdate())
+                        // 特例：app.env 中 MOVIEPILOT_AUTO_UPDATE 为 dev/release 时，执行启动检查更新并启动
+                        if (IsAutoUpdateEnabled())
                         {
                             UpgradeService.Upgrade(log, (success, message) => log(message));
                             break;
@@ -181,8 +181,8 @@ namespace MoviePilot_V3
             }
         }
 
-        /// 读取后端配置 app.env 的 MOVIEPILOT_AUTO_UPDATE 值，判断是否为 release 模式
-        private static bool IsReleaseAutoUpdate()
+        /// 读取后端配置 app.env 的 MOVIEPILOT_AUTO_UPDATE 值，判断是否为 dev/release 模式（均可升级）
+        private static bool IsAutoUpdateEnabled()
         {
             try
             {
@@ -193,12 +193,13 @@ namespace MoviePilot_V3
                     string trimmed = line.Trim();
                     if (!trimmed.StartsWith("MOVIEPILOT_AUTO_UPDATE=", StringComparison.OrdinalIgnoreCase)) continue;
                     string value = trimmed.Substring("MOVIEPILOT_AUTO_UPDATE=".Length).Trim().Trim('\'', '"');
-                    return string.Equals(value, "release", StringComparison.OrdinalIgnoreCase);
+                    return string.Equals(value, "dev", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(value, "release", StringComparison.OrdinalIgnoreCase);
                 }
             }
             catch
             {
-                // 读取失败按非 release 处理，走正常重启流程
+                // 读取失败按非 dev/release 处理，走正常重启流程
             }
             return false;
         }
