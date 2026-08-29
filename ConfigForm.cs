@@ -17,6 +17,7 @@ namespace MoviePilot_V3
         private ComboBox cmbProxyType;
         private TextBox txtProxyHost;
         private NumericUpDown numProxyPort;
+        private CheckBox chkPreventSleep;
         private CheckBox chkDebugLog;
         private CheckBox chkAutoUpdate;
         private CheckBox chkAutoStart;
@@ -90,8 +91,8 @@ namespace MoviePilot_V3
             {
                 Icon = windowIcon;
             }
-            // 高度 560：运行版本 + 四行数值配置 + GitHub Token + 代理（类型/地址/端口）+ 提示行 + 三个启动开关 + 操作按钮行 + 确定/取消行
-            ClientSize = new Size(480, 560);
+            // 高度 590：运行版本 + 四行数值配置 + GitHub Token + 代理（类型/地址/端口）+ 五个开关 + 操作按钮行 + 确定/取消行
+            ClientSize = new Size(480, 590);
             BackColor = bg;
             ForeColor = fg;
             Font = uiFont;
@@ -182,6 +183,16 @@ namespace MoviePilot_V3
                 TextAlign = HorizontalAlignment.Right
             };
 
+            // 阻止 Windows 休眠和睡眠：面板运行期间阻止系统空闲进入睡眠/休眠
+            // （SetThreadExecutionState ES_SYSTEM_REQUIRED），退出面板时自动恢复，默认关闭
+            chkPreventSleep = new CheckBox
+            {
+                Text = "阻止Windows休眠和睡眠",
+                AutoSize = true,
+                ForeColor = fg,
+                Location = new Point(20, 340)
+            };
+
             // 打印 Debug 日志：勾选后 uv / pip / curl / git 等子进程命令输出以 DEBUG 级别
             // 实时显示到面板日志（未勾选时只显示 INFO / ERROR 级别的主流程日志）
             chkDebugLog = new CheckBox
@@ -189,7 +200,7 @@ namespace MoviePilot_V3
                 Text = "打印Debug日志（显示 uv / pip / curl / git 命令输出）",
                 AutoSize = true,
                 ForeColor = fg,
-                Location = new Point(20, 340)
+                Location = new Point(20, 370)
             };
 
             // GitHub Token（下载 GitHub 资源文件时携带 Authorization 请求头）
@@ -265,7 +276,7 @@ namespace MoviePilot_V3
                 Text = "启动时更新版本（对比官方最新标签，重建 v3 分支）",
                 AutoSize = true,
                 ForeColor = fg,
-                Location = new Point(20, 370)
+                Location = new Point(20, 400)
             };
 
             // 启动时自动启动 Nginx 和 Python
@@ -274,7 +285,7 @@ namespace MoviePilot_V3
                 Text = "打开应用自动启动 Nginx 和 Python",
                 AutoSize = true,
                 ForeColor = fg,
-                Location = new Point(20, 400)
+                Location = new Point(20, 430)
             };
 
             // 启动时驻留系统托盘（不显示主窗口）
@@ -283,7 +294,7 @@ namespace MoviePilot_V3
                 Text = "启动时驻留托盘（不显示主窗口）",
                 AutoSize = true,
                 ForeColor = fg,
-                Location = new Point(20, 430)
+                Location = new Point(20, 460)
             };
 
             // 立即升级版本（保存配置后触发 git pull 升级流程）
@@ -293,7 +304,7 @@ namespace MoviePilot_V3
                 BackColor = Color.FromArgb(60, 60, 60),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
-                Location = new Point(20, 464),
+                Location = new Point(20, 494),
                 Size = new Size(120, 38)
             };
             btnUpgradeNow.Click += BtnUpgradeNow_Click;
@@ -305,7 +316,7 @@ namespace MoviePilot_V3
                 BackColor = Color.FromArgb(60, 60, 60),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
-                Location = new Point(ClientSize.Width - 160 - 20, 464),
+                Location = new Point(ClientSize.Width - 160 - 20, 494),
                 Size = new Size(160, 38)
             };
             btnFixConflict.Click += BtnFixConflict_Click;
@@ -317,7 +328,7 @@ namespace MoviePilot_V3
                 AutoSize = false,
                 TextAlign = ContentAlignment.MiddleRight,
                 ForeColor = labelGray,
-                Location = new Point(20, 434),
+                Location = new Point(20, 464),
                 Size = new Size(ClientSize.Width - 40, 20)
             };
 
@@ -329,7 +340,7 @@ namespace MoviePilot_V3
                 BackColor = Color.FromArgb(60, 60, 60),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
-                Location = new Point(132, 510),
+                Location = new Point(132, 540),
                 Size = new Size(100, 38)
             };
             btnOK.Click += BtnOK_Click;
@@ -341,7 +352,7 @@ namespace MoviePilot_V3
                 BackColor = Color.FromArgb(60, 60, 60),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
-                Location = new Point(247, 510),
+                Location = new Point(247, 540),
                 Size = new Size(100, 38)
             };
             CancelButton = btnCancel;
@@ -364,6 +375,7 @@ namespace MoviePilot_V3
             Controls.Add(txtProxyHost);
             Controls.Add(lblProxyPort);
             Controls.Add(numProxyPort);
+            Controls.Add(chkPreventSleep);
             Controls.Add(chkDebugLog);
             Controls.Add(chkAutoUpdate);
             Controls.Add(chkAutoStart);
@@ -410,6 +422,7 @@ namespace MoviePilot_V3
             numBackendPort.Value = Clamp(s.BackendPort, (int)numBackendPort.Minimum, (int)numBackendPort.Maximum);
             numMonitorSec.Value = Clamp(s.StatusMonitorSec, (int)numMonitorSec.Minimum, (int)numMonitorSec.Maximum);
             cmbRunVersion.SelectedItem = s.RunVersion;
+            chkPreventSleep.Checked = s.PreventSleep;
             chkDebugLog.Checked = s.DebugLog;
             chkAutoUpdate.Checked = s.AutoUpdateOnStart;
             chkAutoStart.Checked = s.AutoStartServices;
@@ -527,6 +540,7 @@ namespace MoviePilot_V3
                 s.BackendPort = (int)numBackendPort.Value;
                 s.StatusMonitorSec = (int)numMonitorSec.Value;
                 s.RunVersion = (string)cmbRunVersion.SelectedItem;
+                s.PreventSleep = chkPreventSleep.Checked;
                 s.DebugLog = chkDebugLog.Checked;
                 s.AutoUpdateOnStart = chkAutoUpdate.Checked;
                 s.AutoStartServices = chkAutoStart.Checked;

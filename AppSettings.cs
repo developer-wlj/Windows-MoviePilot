@@ -47,6 +47,8 @@ namespace MoviePilot_V3
         // 打印 Debug 日志（uv / pip / curl / git 等子进程命令输出），默认关闭；
         // 关闭时面板只显示 INFO / ERROR 级别的主流程日志
         public bool DebugLog { get; set; } = false;
+        // 阻止 Windows 空闲休眠/睡眠（面板运行期间生效，退出面板时自动恢复），默认关闭
+        public bool PreventSleep { get; set; } = false;
 
         // GitHub Token（下载 GitHub 资源文件时携带 Authorization 请求头，为空则不携带）
         public string GitHubToken { get; set; } = "";
@@ -154,6 +156,13 @@ namespace MoviePilot_V3
                                     s.DebugLog = dl;
                                 }
                                 break;
+                            case "prevent_sleep":
+                                bool ps;
+                                if (bool.TryParse(value, out ps))
+                                {
+                                    s.PreventSleep = ps;
+                                }
+                                break;
                             case "github_token":
                                 s.GitHubToken = value;
                                 break;
@@ -205,6 +214,7 @@ namespace MoviePilot_V3
                 sb.AppendLine("auto_update_on_start=" + AutoUpdateOnStart);
                 sb.AppendLine("auto_start_services=" + AutoStartServices);
                 sb.AppendLine("debug_log=" + DebugLog);
+                sb.AppendLine("prevent_sleep=" + PreventSleep);
                 sb.AppendLine("github_token=" + GitHubToken);
                 sb.AppendLine("proxy_type=" + ProxyType);
                 sb.AppendLine("proxy_host=" + ProxyHost);

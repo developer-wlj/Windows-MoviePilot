@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.IO;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,6 +29,26 @@ namespace MoviePilot_V3
         private readonly StringBuilder pendingLogs = new StringBuilder(); // 窗口隐藏期间的日志缓存（仅 UI 线程访问）：显示时一次性补发，避免隐藏期间逐行 AppendText 拖慢显示
         private const int MaxLogChars = 500 * 1024; // 日志区文本上限：超过后截断为一半，防止无限增长拖慢界面与占用内存
         private const int MaxPendingLogChars = 200 * 1024; // 隐藏期间日志缓存上限：超过后丢弃最旧一半
+
+        // 阻止 Windows 空闲休眠/睡眠：SetThreadExecutionState（kernel32）——
+        // ES_SYSTEM_REQUIRED 阻止系统空闲进入睡眠/休眠，ES_CONTINUOUS 保持该设置直到再次调用；
+        // 设置由调用线程持有（UI 线程常驻面板全程有效），退出时单独调用 ES_CONTINUOUS 恢复
+        [DllImport("kernel32.dll")]
+        private static extern uint SetThreadExecutionState(uint esFlags);
+        private const uint ES_CONTINUOUS = 0x80000000;
+        private const uint ES_SYSTEM_REQUIRED = 0x00000001;
+
+        /// 按配置应用“阻止休眠和睡眠”（面板启动 / 配置保存后调用，幂等）。
+        private static void ApplySleepPrevention()
+        {
+            SetSleepPrevention(AppSettings.Current.PreventSleep);
+        }
+
+        /// 设置 / 解除“阻止休眠和睡眠”（面板退出时强制恢复系统自动睡眠）。
+        private static void SetSleepPrevention(bool enabled)
+        {
+            SetThreadExecutionState(enabled ? (ES_CONTINUOUS | ES_SYSTEM_REQUIRED) : ES_CONTINUOUS);
+        }
 
         /// 面板单例：Services 层静态日志入口（Form1.Debug / Form1.Error）使用；
         /// 面板实例创建前（命令行模式）为 null，静态入口静默丢弃
@@ -173,6 +194,9 @@ namespace MoviePilot_V3
             // 监听命名管道：命令行模式（MoviePilot-V3 -c xxx）的日志实时显示到运行日志区
             StartLogPipeServer();
 
+            // 按配置阻止 Windows 空闲休眠/睡眠（面板运行期间生效，退出时在 FormClosing 恢复）
+            ApplySleepPrevention();
+
             // AutoScale 已完成，先按实际尺寸布局一次按钮行
             LayoutButtonRow();
 
@@ -216,6 +240,8 @@ namespace MoviePilot_V3
                 // 退出放行前：终止面板启动的下载/命令子进程（curl/tar/git/pip），
                 // 防止下载等长任务在面板退出后遗留运行
                 EnvironmentSetup.KillActiveProcesses();
+                // 退出前恢复系统自动睡眠/休眠（若配置了阻止）
+                SetSleepPrevention(false);
             }
         }
 
@@ -625,6 +651,9 @@ namespace MoviePilot_V3
             }
 
             Log("配置已保存: " + AppSettings.ConfigPath);
+
+            // 阻止休眠开关变更立即生效（勾选阻止 / 取消恢复），无需重启面板
+            ApplySleepPrevention();
 
             // 运行版本切换：共用端口一次只运行一个版本，重启服务后生效（下次启动自动停旧起新）
             if (oldRunVersion != AppSettings.Current.RunVersion)
