@@ -29,8 +29,13 @@ namespace MoviePilot_V3
         private const int MaxLogChars = 500 * 1024; // 日志区文本上限：超过后截断为一半，防止无限增长拖慢界面与占用内存
         private const int MaxPendingLogChars = 200 * 1024; // 隐藏期间日志缓存上限：超过后丢弃最旧一半
 
+        /// 面板单例：Services 层静态日志入口（Form1.Debug / Form1.Error）使用；
+        /// 面板实例创建前（命令行模式）为 null，静态入口静默丢弃
+        public static Form1 Instance { get; private set; }
+
         public Form1()
         {
+            Instance = this;
             startInTray = AppSettings.Current.StartMinimizedToTray;
 
             // 防白屏闪烁：所有绘制并入 WM_PAINT（WM_ERASEBKGND 不再用系统默认白背景擦除）；
@@ -214,16 +219,54 @@ namespace MoviePilot_V3
             }
         }
 
-        /// 追加一行带时间戳的运行日志（线程安全，后台线程可直接调用）。
+        /// 追加一行带时间戳的运行日志（线程安全，后台线程可直接调用）。INFO 级别：主流程状态。
         public void Log(string msg)
+        {
+            AppendLog("[INFO] " + msg);
+        }
+
+        /// ERROR 级别：失败 / 异常等需要关注的信息。
+        public void LogError(string msg)
+        {
+            AppendLog("[ERROR] " + msg);
+        }
+
+        /// DEBUG 级别：仅配置“打印Debug日志”开启时输出（uv / pip / curl / git 等子进程命令输出），
+        /// 关闭时直接丢弃，不占用日志区。
+        public void LogDebug(string msg)
+        {
+            if (!AppSettings.Current.DebugLog)
+            {
+                return;
+            }
+            AppendLog("[DEBUG] " + msg);
+        }
+
+        /// DEBUG 级别静态入口：Services 层子进程（uv / pip / curl / git）输出逐行转发，
+        /// 未开启 Debug 日志时静默丢弃（面板单例未创建时同样丢弃）。
+        public static void Debug(string msg)
+        {
+            Form1 f = Instance;
+            if (f != null) f.LogDebug(msg);
+        }
+
+        /// ERROR 级别静态入口：Services 层失败提示。
+        public static void Error(string msg)
+        {
+            Form1 f = Instance;
+            if (f != null) f.LogError(msg);
+        }
+
+        /// 日志核心：时间戳 + 追加 + 截断（线程安全，后台线程可直接调用）。
+        private void AppendLog(string content)
         {
             if (InvokeRequired)
             {
                 // 面板退出过程中句柄可能已销毁：封送失败静默丢弃（进程本就要退出，避免后台线程未处理异常）
-                try { BeginInvoke(new Action<string>(Log), msg); } catch { }
+                try { BeginInvoke(new Action<string>(AppendLog), content); } catch { }
                 return;
             }
-            string line = "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "] " + msg + "\r\n";
+            string line = "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "] " + content + "\r\n";
             if (Visible)
             {
                 // 窗口可见：先补发隐藏期间缓存的日志，再追加当前行（隐藏期间零控件操作）
@@ -326,6 +369,8 @@ namespace MoviePilot_V3
                     UpgradeService.Upgrade(Log, (success, message) =>
                     {
                         if (IsDisposed) return;
+                        if (success) Log("升级成功: " + message);
+                        else LogError("升级失败: " + message);
                         BeginInvoke(new Action(() =>
                         {
                             SetBusy(false);
@@ -336,7 +381,7 @@ namespace MoviePilot_V3
                 }
                 catch (Exception ex)
                 {
-                    Log("升级过程异常: " + ex.Message);
+                    LogError("升级过程异常: " + ex.Message);
                     if (!IsDisposed)
                     {
                         BeginInvoke(new Action(() =>
@@ -361,6 +406,8 @@ namespace MoviePilot_V3
                     UpgradeService.FixCodeConflict(Log, (success, message) =>
                     {
                         if (IsDisposed) return;
+                        if (success) Log("冲突修复成功: " + message);
+                        else LogError("冲突修复失败: " + message);
                         BeginInvoke(new Action(() =>
                         {
                             SetBusy(false);
@@ -371,7 +418,7 @@ namespace MoviePilot_V3
                 }
                 catch (Exception ex)
                 {
-                    Log("冲突修复过程异常: " + ex.Message);
+                    LogError("冲突修复过程异常: " + ex.Message);
                     if (!IsDisposed)
                     {
                         BeginInvoke(new Action(() =>

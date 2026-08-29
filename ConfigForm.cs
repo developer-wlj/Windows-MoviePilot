@@ -17,6 +17,7 @@ namespace MoviePilot_V3
         private ComboBox cmbProxyType;
         private TextBox txtProxyHost;
         private NumericUpDown numProxyPort;
+        private CheckBox chkDebugLog;
         private CheckBox chkAutoUpdate;
         private CheckBox chkAutoStart;
         private CheckBox chkTrayStart;
@@ -181,11 +182,13 @@ namespace MoviePilot_V3
                 TextAlign = HorizontalAlignment.Right
             };
 
-            Label lblHint = new Label
+            // 打印 Debug 日志：勾选后 uv / pip / curl / git 等子进程命令输出以 DEBUG 级别
+            // 实时显示到面板日志（未勾选时只显示 INFO / ERROR 级别的主流程日志）
+            chkDebugLog = new CheckBox
             {
-                Text = "端口修改自动同步 nginx；代理保存后应用至 git 全局配置与下载",
+                Text = "打印Debug日志（显示 uv / pip / curl / git 命令输出）",
                 AutoSize = true,
-                ForeColor = labelGray,
+                ForeColor = fg,
                 Location = new Point(20, 340)
             };
 
@@ -361,7 +364,7 @@ namespace MoviePilot_V3
             Controls.Add(txtProxyHost);
             Controls.Add(lblProxyPort);
             Controls.Add(numProxyPort);
-            Controls.Add(lblHint);
+            Controls.Add(chkDebugLog);
             Controls.Add(chkAutoUpdate);
             Controls.Add(chkAutoStart);
             Controls.Add(chkTrayStart);
@@ -407,6 +410,7 @@ namespace MoviePilot_V3
             numBackendPort.Value = Clamp(s.BackendPort, (int)numBackendPort.Minimum, (int)numBackendPort.Maximum);
             numMonitorSec.Value = Clamp(s.StatusMonitorSec, (int)numMonitorSec.Minimum, (int)numMonitorSec.Maximum);
             cmbRunVersion.SelectedItem = s.RunVersion;
+            chkDebugLog.Checked = s.DebugLog;
             chkAutoUpdate.Checked = s.AutoUpdateOnStart;
             chkAutoStart.Checked = s.AutoStartServices;
             chkTrayStart.Checked = s.StartMinimizedToTray;
@@ -523,6 +527,7 @@ namespace MoviePilot_V3
                 s.BackendPort = (int)numBackendPort.Value;
                 s.StatusMonitorSec = (int)numMonitorSec.Value;
                 s.RunVersion = (string)cmbRunVersion.SelectedItem;
+                s.DebugLog = chkDebugLog.Checked;
                 s.AutoUpdateOnStart = chkAutoUpdate.Checked;
                 s.AutoStartServices = chkAutoStart.Checked;
                 s.StartMinimizedToTray = chkTrayStart.Checked;

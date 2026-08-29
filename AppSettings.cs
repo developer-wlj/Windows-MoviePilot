@@ -44,6 +44,9 @@ namespace MoviePilot_V3
         public bool AutoUpdateOnStart { get; set; } = false;
         // 启动时自动启动 Nginx 和 Python（默认关闭）
         public bool AutoStartServices { get; set; } = false;
+        // 打印 Debug 日志（uv / pip / curl / git 等子进程命令输出），默认关闭；
+        // 关闭时面板只显示 INFO / ERROR 级别的主流程日志
+        public bool DebugLog { get; set; } = false;
 
         // GitHub Token（下载 GitHub 资源文件时携带 Authorization 请求头，为空则不携带）
         public string GitHubToken { get; set; } = "";
@@ -144,6 +147,13 @@ namespace MoviePilot_V3
                                     s.AutoStartServices = as2;
                                 }
                                 break;
+                            case "debug_log":
+                                bool dl;
+                                if (bool.TryParse(value, out dl))
+                                {
+                                    s.DebugLog = dl;
+                                }
+                                break;
                             case "github_token":
                                 s.GitHubToken = value;
                                 break;
@@ -194,6 +204,7 @@ namespace MoviePilot_V3
                 sb.AppendLine("start_minimized_to_tray=" + StartMinimizedToTray);
                 sb.AppendLine("auto_update_on_start=" + AutoUpdateOnStart);
                 sb.AppendLine("auto_start_services=" + AutoStartServices);
+                sb.AppendLine("debug_log=" + DebugLog);
                 sb.AppendLine("github_token=" + GitHubToken);
                 sb.AppendLine("proxy_type=" + ProxyType);
                 sb.AppendLine("proxy_host=" + ProxyHost);

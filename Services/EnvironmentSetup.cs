@@ -533,7 +533,7 @@ namespace MoviePilot_V3.Services
                     { "PYTHONUTF8", "1" }
                 };
                 RunProcessOutput(pythonExe,
-                    "-m pip install " + proxyArgs + "-r \"" + reqFile + "\" --upgrade", AppConfig.CurrentBackendDir, AppConfig.BuildEnvPath(), pythonEnv, log);
+                    "-m pip install " + proxyArgs + "-r \"" + reqFile + "\" --upgrade", AppConfig.CurrentBackendDir, AppConfig.BuildEnvPath(), pythonEnv);
                 return;
             }
             string pyProject = Path.Combine(AppConfig.CurrentBackendDir, "pyproject.toml");
@@ -561,10 +561,13 @@ namespace MoviePilot_V3.Services
                 extraEnv["HTTPS_PROXY"] = proxy;
             }
             string args = "lock --no-cache --directory \"" + AppConfig.CurrentBackendDir + "\"";
-            RunProcessOutput(uvExe, args, AppConfig.CurrentBackendDir, AppConfig.BuildEnvPath(), extraEnv, log);
+            RunProcessOutput(uvExe, args, AppConfig.CurrentBackendDir, AppConfig.BuildEnvPath(), extraEnv);
             try
             {
-                Directory.Delete(Path.Combine(AppConfig.CurrentBackendDir, "moviepilot.egg-info"), true);
+                if (Directory.Exists(Path.Combine(AppConfig.CurrentBackendDir, "moviepilot.egg-info"))) 
+                {
+                    Directory.Delete(Path.Combine(AppConfig.CurrentBackendDir, "moviepilot.egg-info"), true);
+                }
             }
             catch (Exception)
             {
@@ -573,11 +576,11 @@ namespace MoviePilot_V3.Services
             if (AppConfig.CurrentBackendDir.EndsWith("-T"))
             {
                 args = "sync --directory \"" + AppConfig.CurrentBackendDir + "\" --locked --no-default-groups --group runtime-free-threaded --no-dev --no-install-project";
-                RunProcessOutput(uvExe, args, AppConfig.CurrentBackendDir, AppConfig.BuildEnvPath(), extraEnv, log);
+                RunProcessOutput(uvExe, args, AppConfig.CurrentBackendDir, AppConfig.BuildEnvPath(), extraEnv);
             }
             else {
                 args = "sync --directory \"" + AppConfig.CurrentBackendDir + "\" --locked --no-default-groups --no-dev --group runtime-standard --no-install-project";
-                RunProcessOutput(uvExe, args, AppConfig.CurrentBackendDir, AppConfig.BuildEnvPath(), extraEnv, log);
+                RunProcessOutput(uvExe, args, AppConfig.CurrentBackendDir, AppConfig.BuildEnvPath(), extraEnv);
             }
             
         }
@@ -760,7 +763,7 @@ namespace MoviePilot_V3.Services
                 return false;
             }
             log("下载: " + url);
-            int code = RunProcess(curlExe, BuildCurlArgs(url, destFile, withAuth), AppConfig.TMP_DIR, null, null, log);
+            int code = RunProcess(curlExe, BuildCurlArgs(url, destFile, withAuth), AppConfig.TMP_DIR, null);
             if (code != 0)
             {
                 log("下载失败（curl 退出码 " + code + "）");
@@ -788,7 +791,7 @@ namespace MoviePilot_V3.Services
                 log("创建解压目录失败: " + ex.Message);
                 return false;
             }
-            int code = RunProcess(tarExe, "-xf \"" + archive + "\" -C \"" + destDir + "\"", destDir, null, null, log);
+            int code = RunProcess(tarExe, "-xf \"" + archive + "\" -C \"" + destDir + "\"", destDir, null);
             if (code != 0)
             {
                 log("解压失败（tar 退出码 " + code + "）");
@@ -1003,7 +1006,7 @@ namespace MoviePilot_V3.Services
         }
 
         /// <summary>执行进程，等待退出；超时（5 分钟）则强制结束并返回 -1。</summary>
-        private static int RunProcess(string fileName, string arguments, string workingDir, string envPath, Dictionary<string, string> extraEnv = null, Action<string> logLine = null)
+        private static int RunProcess(string fileName, string arguments, string workingDir, string envPath, Dictionary<string, string> extraEnv = null)
         {
             try
             {
@@ -1042,11 +1045,11 @@ namespace MoviePilot_V3.Services
                     TrackProcess(p);
                     try
                     {
-                        // 异步读取双管道，避免串行 ReadToEnd 导致 stderr 缓冲满（curl 进度条）死锁
-                        // 逐行实时转发到面板日志（logLine 非空时）：下载 / 解压等耗时命令
-                        // 执行期间即可看到进度，不再等命令结束才一次性倒出
-                        p.OutputDataReceived += (s, e) => { if (e.Data != null && logLine != null) logLine(e.Data); };
-                        p.ErrorDataReceived += (s, e) => { if (e.Data != null && logLine != null) logLine(e.Data); };
+                        // 异步读取双管道，避免串行 ReadToEnd 导致 stderr 缓冲满（curl 进度条）死锁；
+                        // 子进程输出统一按 DEBUG 级别转发到面板日志（仅配置“打印Debug日志”时显示）：
+                        // 下载 / 解压等耗时命令执行期间勾选 Debug 时即可看到进度
+                        p.OutputDataReceived += (s, e) => { if (e.Data != null) Form1.Debug(e.Data); };
+                        p.ErrorDataReceived += (s, e) => { if (e.Data != null) Form1.Debug(e.Data); };
                         p.BeginOutputReadLine();
                         p.BeginErrorReadLine();
                         // 大文件下载（git 45MB / python 60MB）与 pip 安装耗时较长，超时放宽到 20 分钟
@@ -1071,7 +1074,7 @@ namespace MoviePilot_V3.Services
         }
 
         /// <summary>执行进程并返回完整输出（用于 pip 等需要查看输出的场景）。</summary>
-        private static string RunProcessOutput(string fileName, string arguments, string workingDir, string envPath, Dictionary<string, string> extraEnv = null, Action<string> logLine = null)
+        private static string RunProcessOutput(string fileName, string arguments, string workingDir, string envPath, Dictionary<string, string> extraEnv = null)
         {
             try
             {
@@ -1111,10 +1114,11 @@ namespace MoviePilot_V3.Services
                     TrackProcess(p);
                     try
                     {
-                        // 收集完整输出供调用方判断，同时逐行实时转发到面板日志（logLine 非空时）：
-                        // uv sync / pip install 执行期间即可看到进度，不再等命令结束才一次性倒出
-                        p.OutputDataReceived += (s, e) => { if (e.Data != null) { sb.AppendLine(e.Data); if (logLine != null) logLine(e.Data); } };
-                        p.ErrorDataReceived += (s, e) => { if (e.Data != null) { sb.AppendLine(e.Data); if (logLine != null) logLine(e.Data); } };
+                        // 收集完整输出供调用方判断，同时逐行按 DEBUG 级别转发到面板日志
+                        // （仅配置“打印Debug日志”时显示）：uv sync / pip install 执行期间
+                        // 勾选 Debug 时即可看到进度，不再等命令结束才一次性倒出
+                        p.OutputDataReceived += (s, e) => { if (e.Data == null) return; sb.AppendLine(e.Data); Form1.Debug(e.Data); };
+                        p.ErrorDataReceived += (s, e) => { if (e.Data == null) return; sb.AppendLine(e.Data); Form1.Debug(e.Data); };
                         p.BeginOutputReadLine();
                         p.BeginErrorReadLine();
                         // uv 全量安装依赖可能超过 5 分钟，超时放宽到 10 分钟
