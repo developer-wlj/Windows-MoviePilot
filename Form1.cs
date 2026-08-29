@@ -370,16 +370,73 @@ namespace MoviePilot_V3
             if (f != null) f.LogError(msg);
         }
 
+        // 后台线程日志合并缓冲（静态）：Debug 开启时子进程输出（ls-remote / pip / git 等）
+        // 逐行到达这里；先合并、再由 UI 线程按批消费。逐行 BeginInvoke 在海量输出
+        // （如拉取大量标签）时会灌满 UI 消息队列，窗口长时间无法处理消息而显示"无响应"
+        private static readonly object LogBatchLock = new object();
+        private static readonly StringBuilder LogBatch = new StringBuilder();
+        private static bool logFlushPending; // 是否已有批量刷新消息挂起（单飞防抖：任意时刻最多一条）
+        private const int MaxFlushChars = 32 * 1024; // 单批刷新上限：防止单次 AppendText 过大阻塞 UI
+
         /// 日志核心：时间戳 + 追加 + 截断（线程安全，后台线程可直接调用）。
         private void AppendLog(string content)
         {
             if (InvokeRequired)
             {
-                // 面板退出过程中句柄可能已销毁：封送失败静默丢弃（进程本就要退出，避免后台线程未处理异常）
-                try { BeginInvoke(new Action<string>(AppendLog), content); } catch { }
+                // 后台线程：行先合并进缓冲，仅在没有挂起刷新时排一条封送消息；
+                // 面板退出过程中句柄可能已销毁：封送失败静默丢弃
+                bool shouldFlush = false;
+                string line = "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "] " + content + "\r\n";
+                lock (LogBatchLock)
+                {
+                    LogBatch.Append(line);
+                    if (!logFlushPending)
+                    {
+                        logFlushPending = true;
+                        shouldFlush = true;
+                    }
+                }
+                if (shouldFlush)
+                {
+                    try { BeginInvoke(new Action(FlushLogBatch)); }
+                    catch { logFlushPending = false; }
+                }
                 return;
             }
-            string line = "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "] " + content + "\r\n";
+            AppendLogCore(content);
+        }
+
+        /// 批量刷新合并日志（仅 UI 线程执行）：一次封送可携带多行，避免消息风暴。
+        private void FlushLogBatch()
+        {
+            string batch = null;
+            bool more = false;
+            lock (LogBatchLock)
+            {
+                logFlushPending = false;
+                if (LogBatch.Length == 0) return;
+                if (LogBatch.Length > MaxFlushChars)
+                {
+                    batch = LogBatch.ToString(0, MaxFlushChars);
+                    LogBatch.Remove(0, MaxFlushChars);
+                    more = true; // 还有剩余：继续排下一次刷新，保证数据最终显示
+                }
+                else
+                {
+                    batch = LogBatch.ToString();
+                    LogBatch.Clear();
+                }
+            }
+            if (more)
+            {
+                try { BeginInvoke(new Action(FlushLogBatch)); } catch { }
+            }
+            AppendLogCore(batch);
+        }
+
+        /// 追加文本（仅 UI 线程调用）：先补发隐藏期间缓存，再追加当前批，最后按上限截断。
+        private void AppendLogCore(string text)
+        {
             if (Visible)
             {
                 // 窗口可见：先补发隐藏期间缓存的日志，再追加当前行（隐藏期间零控件操作）
