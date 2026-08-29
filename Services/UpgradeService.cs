@@ -79,17 +79,39 @@ namespace MoviePilot_V3.Services
                     }
                 }
 
-                // 只签出 v3 分支：--single-branch 只拉取该分支，仓库更小、后续 fetch 更快
-                string cloneOutput = RunCommand(gitExe, "clone --branch v3 --single-branch " + VersionRepo + " \"" + AppConfig.CurrentBackendDir + "\"",
-                    AppConfig.BASE_DIR, envPath);
+                // 首次克隆优先用官方最新版本标签（正式发布版，稳定）；官方源无标签
+                // （网络/代理异常）时回退克隆 v3 分支。--single-branch 只拉取目标提交链，
+                // 仓库更小、后续 fetch 更快
+                string latestTag, latestTagHash;
+                string cloneArgs = "clone --branch v3 --single-branch " + VersionRepo + " \"" + AppConfig.CurrentBackendDir + "\"";
+                if (GetOfficialLatestTag(gitExe, envPath, out latestTag, out latestTagHash, log))
+                {
+                    log("首次克隆使用官方最新标签 " + latestTag);
+                    cloneArgs = "clone --branch " + latestTag + " --single-branch " + VersionRepo + " \"" + AppConfig.CurrentBackendDir + "\"";
+                }
+                else
+                {
+                    log("未获取到官方版本标签，回退克隆 v3 分支");
+                }
+                string cloneOutput = RunCommand(gitExe, cloneArgs, AppConfig.BASE_DIR, envPath);
                 log("Git输出: " + cloneOutput);
                 if (!Directory.Exists(Path.Combine(AppConfig.CurrentBackendDir, ".git")))
                 {
                     return "克隆失败:\n" + cloneOutput;
                 }
+                // 克隆标签时 HEAD 处于 detached 状态：重建 v3 分支指向当前提交，
+                // 保证后续版本判断（IsAncestorOfHEAD）与升级重建（checkout -B v3）基于 v3 分支
+                string branchOut = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" checkout -f -B v3",
+                    AppConfig.CurrentBackendDir, envPath, log);
+                if (branchOut.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return "克隆后重建 v3 分支失败:\n" + branchOut;
+                }
                 log("后端代码克隆完成");
-                // 克隆后立即打补丁：无论哪个 Git 源，都从 gitee v3-rebase 分支 cherry-pick rebase 补丁
-                string patchError = ApplyRebasePatches(gitExe, envPath, log);
+                // 克隆后立即打补丁：无论哪个 Git 源，都从 gitee v3-rebase 分支 cherry-pick rebase 补丁；
+                // 补丁分支可能落后官方（官方推进后补丁上下文不匹配会冲突），冲突时自动回退官方纯净版
+                // （丢弃补丁）保证首次部署不被补丁阻塞，与升级/启动更新路径的行为一致
+                string patchError = ApplyRebasePatchesWithFallback(gitExe, envPath, log);
                 if (patchError != null)
                 {
                     return patchError;
@@ -303,7 +325,7 @@ namespace MoviePilot_V3.Services
                 // 远端分叉，git pull 会因“divergent branches”失败，改为 fetch + 重建，与标签路线同构）
                 log("官方源未找到版本标签，回退以官方 v3 分支为准...");
                 string fetchOutput = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" fetch " + VersionRepo + " v3",
-                    AppConfig.CurrentBackendDir, envPath);
+                    AppConfig.CurrentBackendDir, envPath, log);
                 if (fetchOutput.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     log("回退拉取官方 v3 分支失败，跳过本次升级: " + fetchOutput);
@@ -510,7 +532,7 @@ namespace MoviePilot_V3.Services
             foreach (string pr in PatchRepos)
             {
                 fetchOutput = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" fetch " + pr + " " + PatchBranch,
-                    AppConfig.CurrentBackendDir, envPath);
+                    AppConfig.CurrentBackendDir, envPath, log);
                 if (fetchOutput.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) < 0)
                 {
                     break;
@@ -677,7 +699,7 @@ namespace MoviePilot_V3.Services
                 // git pull 会因“divergent branches”失败，改为 fetch + 重建，与标签路线同构）
                 log("官方源未找到版本标签，回退以官方 v3 分支为准...");
                 string fetchOutput = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" fetch " + VersionRepo + " v3",
-                    AppConfig.CurrentBackendDir, envPath);
+                    AppConfig.CurrentBackendDir, envPath, log);
                 log("Git输出: " + fetchOutput);
                 if (fetchOutput.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
@@ -804,7 +826,7 @@ namespace MoviePilot_V3.Services
         private static string RebuildV3FromTag(string gitExe, string envPath, string latestTag, string latestTagHash, Action<string> log)
         {
             string fetchOutput = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" fetch " + VersionRepo + " tag " + latestTag,
-                AppConfig.CurrentBackendDir, envPath);
+                AppConfig.CurrentBackendDir, envPath, log);
             if (fetchOutput.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 return "从官方拉取标签失败:\n" + fetchOutput;
@@ -832,7 +854,7 @@ namespace MoviePilot_V3.Services
             MoveUntrackedFiles(gitExe, envPath, log);
 
             string checkoutOutput = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" checkout -f -B v3 " + commitHash,
-                AppConfig.CurrentBackendDir, envPath);
+                AppConfig.CurrentBackendDir, envPath, log);
             if (checkoutOutput.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 return "重建 v3 分支失败:\n" + checkoutOutput;
@@ -880,7 +902,7 @@ namespace MoviePilot_V3.Services
             foreach (string patchHash in patches)
             {
                 string cpOut = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" cherry-pick " + patchHash,
-                    AppConfig.CurrentBackendDir, envPath);
+                    AppConfig.CurrentBackendDir, envPath, log);
                 if (cpOut.IndexOf("nothing to commit", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     // 已应用过（改动已在本地）：跳过并继续
@@ -1050,7 +1072,7 @@ namespace MoviePilot_V3.Services
         /// <summary>
         /// 运行命令并合并捕获 stdout/stderr（对应原脚本 2>&1）。
         /// </summary>
-        private static string RunCommand(string fileName, string arguments, string workingDir, string envPath)
+        private static string RunCommand(string fileName, string arguments, string workingDir, string envPath, Action<string> log = null)
         {
             ProcessStartInfo psi = new ProcessStartInfo
             {
@@ -1074,11 +1096,14 @@ namespace MoviePilot_V3.Services
                 EnvironmentSetup.TrackProcess(p);
                 try
                 {
-                    // 并行异步读取 stdout/stderr：同步 ReadToEnd 会一直阻塞到进程退出，
-                    // 进程卡死（网络黑洞等）时连超时判断都无法执行；异步读取 + WaitForExit 超时
-                    // 才能可靠中断——超时后 Kill 使管道关闭，读取任务必然完成
-                    Task<string> stdoutTask = p.StandardOutput.ReadToEndAsync();
-                    Task<string> stderrTask = p.StandardError.ReadToEndAsync();
+                    // 逐行实时转发到面板日志（log 非空时），同时收集完整输出供调用方判断：
+                    // 拉取标签 / 克隆 / 打补丁等耗时命令执行期间即可看到进度，
+                    // 不再等命令结束才一次性倒出；事件式读取天然避免管道缓冲死锁
+                    StringBuilder sb = new StringBuilder();
+                    p.OutputDataReceived += (s, e) => { if (e.Data == null) return; sb.AppendLine(e.Data); if (log != null) log(e.Data); };
+                    p.ErrorDataReceived += (s, e) => { if (e.Data == null) return; sb.AppendLine(e.Data); if (log != null) log(e.Data); };
+                    p.BeginOutputReadLine();
+                    p.BeginErrorReadLine();
                     // git 命令超时限制为 120 秒（卡死的网络请求应尽快放弃，避免长时间挂住）
                     bool timedOut = !p.WaitForExit(120 * 1000);
                     if (timedOut)
@@ -1087,8 +1112,9 @@ namespace MoviePilot_V3.Services
                         // 调用方按 fatal / 空输出判断走失败路径
                         try { p.Kill(); } catch { }
                     }
-                    Task.WaitAll(stdoutTask, stderrTask);
-                    string output = stdoutTask.Result + stderrTask.Result;
+                    // 无参 WaitForExit 等待异步管道读取结束（Kill 后管道关闭，读取必然完成）
+                    p.WaitForExit();
+                    string output = sb.ToString();
                     if (timedOut)
                     {
                         output += Environment.NewLine + "fatal: git 命令超时（120 秒），已强制终止";

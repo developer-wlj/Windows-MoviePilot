@@ -532,9 +532,8 @@ namespace MoviePilot_V3.Services
                 {
                     { "PYTHONUTF8", "1" }
                 };
-                string output = RunProcessOutput(pythonExe,
-                    "-m pip install " + proxyArgs + "-r \"" + reqFile + "\" --upgrade", AppConfig.CurrentBackendDir, AppConfig.BuildEnvPath(), pythonEnv);
-                log("Pip输出: " + Truncate(output, 500));
+                RunProcessOutput(pythonExe,
+                    "-m pip install " + proxyArgs + "-r \"" + reqFile + "\" --upgrade", AppConfig.CurrentBackendDir, AppConfig.BuildEnvPath(), pythonEnv, log);
                 return;
             }
             string pyProject = Path.Combine(AppConfig.CurrentBackendDir, "pyproject.toml");
@@ -562,7 +561,7 @@ namespace MoviePilot_V3.Services
                 extraEnv["HTTPS_PROXY"] = proxy;
             }
             string args = "lock --no-cache --directory \"" + AppConfig.CurrentBackendDir + "\"";
-            NewMethod(log, uvExe, args, extraEnv);
+            RunProcessOutput(uvExe, args, AppConfig.CurrentBackendDir, AppConfig.BuildEnvPath(), extraEnv, log);
             try
             {
                 Directory.Delete(Path.Combine(AppConfig.CurrentBackendDir, "moviepilot.egg-info"), true);
@@ -574,19 +573,13 @@ namespace MoviePilot_V3.Services
             if (AppConfig.CurrentBackendDir.EndsWith("-T"))
             {
                 args = "sync --directory \"" + AppConfig.CurrentBackendDir + "\" --locked --no-default-groups --group runtime-free-threaded --no-dev --no-install-project";
-                NewMethod(log, uvExe, args, extraEnv);
+                RunProcessOutput(uvExe, args, AppConfig.CurrentBackendDir, AppConfig.BuildEnvPath(), extraEnv, log);
             }
             else {
                 args = "sync --directory \"" + AppConfig.CurrentBackendDir + "\" --locked --no-default-groups --no-dev --group runtime-standard --no-install-project";
-                NewMethod(log, uvExe, args, extraEnv);
+                RunProcessOutput(uvExe, args, AppConfig.CurrentBackendDir, AppConfig.BuildEnvPath(), extraEnv, log);
             }
             
-        }
-
-        private static void NewMethod(Action<string> log, string uvExe, string args, Dictionary<string, string> extraEnv)
-        {
-            string uvOutput = RunProcessOutput(uvExe, args, AppConfig.CurrentBackendDir, AppConfig.BuildEnvPath(), extraEnv);
-            log("Uv输出: " + Truncate(uvOutput, 500));
         }
 
         // ==================== 站点资源（GitHub raw，携带 Token） ====================
@@ -767,7 +760,7 @@ namespace MoviePilot_V3.Services
                 return false;
             }
             log("下载: " + url);
-            int code = RunProcess(curlExe, BuildCurlArgs(url, destFile, withAuth), AppConfig.TMP_DIR, null);
+            int code = RunProcess(curlExe, BuildCurlArgs(url, destFile, withAuth), AppConfig.TMP_DIR, null, null, log);
             if (code != 0)
             {
                 log("下载失败（curl 退出码 " + code + "）");
@@ -795,7 +788,7 @@ namespace MoviePilot_V3.Services
                 log("创建解压目录失败: " + ex.Message);
                 return false;
             }
-            int code = RunProcess(tarExe, "-xf \"" + archive + "\" -C \"" + destDir + "\"", destDir, null);
+            int code = RunProcess(tarExe, "-xf \"" + archive + "\" -C \"" + destDir + "\"", destDir, null, null, log);
             if (code != 0)
             {
                 log("解压失败（tar 退出码 " + code + "）");
@@ -1010,7 +1003,7 @@ namespace MoviePilot_V3.Services
         }
 
         /// <summary>执行进程，等待退出；超时（5 分钟）则强制结束并返回 -1。</summary>
-        private static int RunProcess(string fileName, string arguments, string workingDir, string envPath, Dictionary<string, string> extraEnv = null)
+        private static int RunProcess(string fileName, string arguments, string workingDir, string envPath, Dictionary<string, string> extraEnv = null, Action<string> logLine = null)
         {
             try
             {
@@ -1050,8 +1043,10 @@ namespace MoviePilot_V3.Services
                     try
                     {
                         // 异步读取双管道，避免串行 ReadToEnd 导致 stderr 缓冲满（curl 进度条）死锁
-                        p.OutputDataReceived += (s, e) => { };
-                        p.ErrorDataReceived += (s, e) => { };
+                        // 逐行实时转发到面板日志（logLine 非空时）：下载 / 解压等耗时命令
+                        // 执行期间即可看到进度，不再等命令结束才一次性倒出
+                        p.OutputDataReceived += (s, e) => { if (e.Data != null && logLine != null) logLine(e.Data); };
+                        p.ErrorDataReceived += (s, e) => { if (e.Data != null && logLine != null) logLine(e.Data); };
                         p.BeginOutputReadLine();
                         p.BeginErrorReadLine();
                         // 大文件下载（git 45MB / python 60MB）与 pip 安装耗时较长，超时放宽到 20 分钟
@@ -1076,7 +1071,7 @@ namespace MoviePilot_V3.Services
         }
 
         /// <summary>执行进程并返回完整输出（用于 pip 等需要查看输出的场景）。</summary>
-        private static string RunProcessOutput(string fileName, string arguments, string workingDir, string envPath, Dictionary<string, string> extraEnv = null)
+        private static string RunProcessOutput(string fileName, string arguments, string workingDir, string envPath, Dictionary<string, string> extraEnv = null, Action<string> logLine = null)
         {
             try
             {
@@ -1116,8 +1111,10 @@ namespace MoviePilot_V3.Services
                     TrackProcess(p);
                     try
                     {
-                        p.OutputDataReceived += (s, e) => { if (e.Data != null) sb.AppendLine(e.Data); };
-                        p.ErrorDataReceived += (s, e) => { if (e.Data != null) sb.AppendLine(e.Data); };
+                        // 收集完整输出供调用方判断，同时逐行实时转发到面板日志（logLine 非空时）：
+                        // uv sync / pip install 执行期间即可看到进度，不再等命令结束才一次性倒出
+                        p.OutputDataReceived += (s, e) => { if (e.Data != null) { sb.AppendLine(e.Data); if (logLine != null) logLine(e.Data); } };
+                        p.ErrorDataReceived += (s, e) => { if (e.Data != null) { sb.AppendLine(e.Data); if (logLine != null) logLine(e.Data); } };
                         p.BeginOutputReadLine();
                         p.BeginErrorReadLine();
                         // uv 全量安装依赖可能超过 5 分钟，超时放宽到 10 分钟
@@ -1141,12 +1138,6 @@ namespace MoviePilot_V3.Services
                 Debug.WriteLine("执行进程失败 " + fileName + ": " + ex.Message);
                 return "";
             }
-        }
-
-        private static string Truncate(string text, int maxLength)
-        {
-            if (text == null) return "";
-            return text.Length > maxLength ? text.Substring(0, maxLength) + "..." : text;
         }
 
         private static void TryDelete(string file)
