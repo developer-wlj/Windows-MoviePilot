@@ -394,12 +394,13 @@ namespace MoviePilot_V3
         /// 日志核心：时间戳 + 追加 + 截断（线程安全，后台线程可直接调用）。
         private void AppendLog(string content)
         {
+            string line = "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "] " + content + "\r\n";
             if (InvokeRequired)
             {
                 // 后台线程：行先合并进缓冲，仅在没有挂起刷新时排一条封送消息；
                 // 面板退出过程中句柄可能已销毁：封送失败静默丢弃
                 bool shouldFlush = false;
-                string line = "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "] " + content + "\r\n";
+                
                 lock (LogBatchLock)
                 {
                     LogBatch.Append(line);
@@ -416,7 +417,7 @@ namespace MoviePilot_V3
                 }
                 return;
             }
-            AppendLogCore(content);
+            AppendLogCore(line);
         }
 
         /// 批量刷新合并日志（仅 UI 线程执行）：一次封送可携带多行，避免消息风暴。
