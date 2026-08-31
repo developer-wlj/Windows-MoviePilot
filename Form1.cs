@@ -155,7 +155,7 @@ namespace MoviePilot_V3
             InitializeComponent();
             InitializeTray();
 
-            // 主窗口图标与托盘一致（exe 内嵌清单图标优先，app.ico 文件回退）
+            // 主窗口图标与托盘同源（app.ico 大图标，标题栏/任务栏高 DPI 下保持清晰）
             if (appIcon != null)
             {
                 Icon = appIcon;
@@ -176,12 +176,26 @@ namespace MoviePilot_V3
         /// 初始化托盘图标与托盘菜单。
         private void InitializeTray()
         {
-            // 优先使用 exe 内嵌图标（清单图标）；提取失败时回退脚本目录下的 app.ico，再回退系统默认图标
+            // 优先使用 app.ico 大图标（窗口与托盘同源）；托盘固定小尺寸渲染，
+            // 从大图派生 32x32 供系统缩放，比直接缩小 128x128 更清晰
             appIcon = AppConfig.GetAppIcon();
+
+            Icon trayIcon = null;
+            if (appIcon != null)
+            {
+                try
+                {
+                    trayIcon = new Icon(appIcon, 32, 32);
+                }
+                catch
+                {
+                    // 派生失败：直接用原图标
+                }
+            }
 
             notifyIcon = new NotifyIcon
             {
-                Icon = appIcon ?? SystemIcons.Application,
+                Icon = trayIcon ?? appIcon ?? SystemIcons.Application,
                 Text = AppConfig.APP_NAME + " v" + AppConfig.APP_VERSION + " - 运行中",
                 Visible = true
             };

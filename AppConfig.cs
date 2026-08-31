@@ -85,11 +85,25 @@ namespace MoviePilot_V3
         /// 托盘图标路径（脚本目录下），不存在时使用系统默认图标。
         public static readonly string APP_ICON = Path.Combine(BASE_DIR, "app.ico");
 
-        /// 获取应用图标：优先 exe 内嵌图标（编译进清单的 app.ico），
-        /// 提取失败时回退 BASE_DIR 下的 app.ico 文件，仍无则返回 null（调用方用系统默认图标）。
+        /// 获取应用图标：优先从 BASE_DIR 下的 app.ico 加载大尺寸帧（请求 256x256，
+        /// .NET 的 Icon 构造不支持 ico 内 256x256 PNG 帧会落到 128x128，
+        /// 对标题栏 16~32 与任务栏 48~64 的渲染均绰绰有余），
+        /// 加载失败时回退 exe 内嵌图标（Icon.ExtractAssociatedIcon 只返回 32x32，
+        /// 高 DPI 下放大渲染会模糊），仍无则返回 null（调用方用系统默认图标）。
         /// 返回新实例，调用方负责释放。
         public static Icon GetAppIcon()
         {
+            if (File.Exists(APP_ICON))
+            {
+                try
+                {
+                    return new Icon(APP_ICON, 256, 256);
+                }
+                catch
+                {
+                    // app.ico 加载失败：回退 exe 内嵌图标
+                }
+            }
             try
             {
                 Icon icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
@@ -100,17 +114,7 @@ namespace MoviePilot_V3
             }
             catch
             {
-                // exe 内嵌图标提取失败：回退外部 app.ico
-            }
-            if (File.Exists(APP_ICON))
-            {
-                try
-                {
-                    return new Icon(APP_ICON);
-                }
-                catch
-                {
-                }
+                // exe 内嵌图标提取失败：返回 null，调用方用系统默认图标
             }
             return null;
         }
