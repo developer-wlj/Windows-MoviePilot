@@ -1,7 +1,7 @@
 # MoviePilot-V3 服务管理面板（Windows）
 
 基于 **.NET Framework 4.8** 构建的 MoviePilot v3 一键管理面板：托盘图标 + 可视化界面，傻瓜式启动 / 停止 / 重启全套服务（nginx 前端 + Python 后端），首次使用自动下载便携版运行环境，无需手动配置任何命令行。
-
+> 运行环境要求、源码编译、配置项说明（config\app.ini）、命令行用法、补丁包说明、升级机制与配置保护、常见问题等详细内容见 [README-advanced.md](README-advanced.md)
 ## 特点
 
 - **傻瓜式可视化**：全部操作只需点击按钮，无需任何命令行知识
@@ -53,8 +53,6 @@ MoviePilot-V3\
 4. 默认账号 `admin`，首次密码随机生成，请查看后端日志（`server\config\logs\moviepilot.log`）
 
 ![面板主界面](img/main-window.png)
-
-> 运行环境要求、源码编译、配置项说明（config\app.ini）、命令行用法、补丁包说明、升级机制与配置保护、常见问题等详细内容见 [README-advanced.md](README-advanced.md)
 
 ## 致谢
 

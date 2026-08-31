@@ -3,12 +3,7 @@ name: Build and Release
 
 on:
   push:
-    branches:
-      - v3
     tags: ['v*']
-  pull_request:
-    branches:
-      - v3
   workflow_dispatch:
 
 jobs:
