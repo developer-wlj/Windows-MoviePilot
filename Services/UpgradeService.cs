@@ -402,8 +402,8 @@ namespace MoviePilot_V3.Services
             // 安装/更新 Python 依赖（requirements.txt 缺失时自动改用 uv sync 按 pyproject.toml 安装）
             EnvironmentSetup.InstallRequirements(AppConfig.GetPythonExe(), log);
 
-            // 同步前端资源：按 version.py 的 FRONTEND_VERSION 对比 mp-web\version.txt，版本更高才下载覆盖
-            EnvironmentSetup.EnsureFrontend(log);
+            // 同步前端 / 认证 / 站点资源（按“更新时强制更新前端资源和后端认证和站点资源”配置决定是否强制覆盖）
+            SyncResourcesByConfig(log);
 
             // 重启服务
             Thread.Sleep(500);
@@ -463,12 +463,37 @@ namespace MoviePilot_V3.Services
             // 6. 重新安装/更新 Python 依赖（代码版本变化，依赖可能变更）
             EnvironmentSetup.InstallRequirements(AppConfig.GetPythonExe(), log);
 
-            // 7. 重启服务
+            // 7. 同步前端 / 认证 / 站点资源（按“更新时强制更新前端资源和后端认证和站点资源”配置决定是否强制覆盖）
+            SyncResourcesByConfig(log);
+
+            // 8. 重启服务
             Thread.Sleep(500);
             ServiceManager.StartServices(log);
 
             log("代码冲突修复完成");
             onFinished(true, "代码冲突已修复（已强制重建官方最新 v3，未并入补丁），服务已重启。");
+        }
+
+        /// <summary>
+        /// 按配置同步资源（立即升级版本 / 代码冲突时点我流程共用，在服务重启前调用）：
+        /// 勾选了“更新时强制更新前端资源和后端认证和站点资源”（默认勾选）时——
+        /// 1. 前端资源即使版本号相同也重新下载覆盖：官方前端可能对同一版本号重新发布不同
+        ///    内容的 dist.zip（版本号不变、内容更新），仅按版本号比较会漏更；本地版本高于
+        ///    要求时不覆盖（用户自装的更高版本前端不回退）；
+        /// 2. 强制重新下载认证资源（sites.cp314-win_amd64.pyd / sites.cp314t-win_amd64.pyd）
+        ///    与站点资源（user.sites.v3.bin），下载失败自动恢复旧文件并记日志，不阻塞流程。
+        /// 未勾选时维持原行为：前端按版本号比较；认证 / 站点资源由启动服务流程按缺失补下载。
+        /// </summary>
+        private static void SyncResourcesByConfig(Action<string> log)
+        {
+            if (!AppSettings.Current.ForceUpdateResources)
+            {
+                EnvironmentSetup.EnsureFrontend(log);
+                return;
+            }
+            log("已勾选\"更新时强制更新前端资源和后端认证和站点资源\"，强制刷新资源...");
+            EnvironmentSetup.EnsureFrontend(log, true);
+            EnvironmentSetup.RefreshSiteFiles(log);
         }
 
         /// 强制重建官方 v3 基线（"修复代码冲突"的核心步骤，升级流程中有新补丁/补丁冲突时复用）：
@@ -675,7 +700,8 @@ namespace MoviePilot_V3.Services
                     }
                     // 即使代码已是最新也更新依赖/前端：手动 cherry-pick 或补丁可能引入新依赖
                     EnvironmentSetup.InstallRequirements(AppConfig.GetPythonExe(), log);
-                    EnvironmentSetup.EnsureFrontend(log);
+                    // 同步前端 / 认证 / 站点资源（按“更新时强制更新前端资源和后端认证和站点资源”配置决定是否强制覆盖）
+                    SyncResourcesByConfig(log);
                     log("启动检查更新完成");
                     return;
                 }
@@ -740,8 +766,8 @@ namespace MoviePilot_V3.Services
             // 5. 重新安装/更新 Python 依赖（requirements.txt 缺失时自动改用 uv sync）
             EnvironmentSetup.InstallRequirements(AppConfig.GetPythonExe(), log);
 
-            // 6. 同步前端资源：按 version.py 的 FRONTEND_VERSION 对比 mp-web\version.txt，版本更高才下载覆盖
-            EnvironmentSetup.EnsureFrontend(log);
+            // 6. 同步前端 / 认证 / 站点资源（按“更新时强制更新前端资源和后端认证和站点资源”配置决定是否强制覆盖）
+            SyncResourcesByConfig(log);
 
             log("启动检查更新完成");
         }

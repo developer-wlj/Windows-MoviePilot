@@ -100,9 +100,13 @@ namespace MoviePilot_V3.Services
         /// 首次克隆后端代码或升级后，读取 version.py 的 FRONTEND_VERSION，与 mp-web\version.txt
         /// 当前版本对比，后端要求版本更高时用 curl 下载对应版本的前端发行包（dist.zip）到 tmp，
         /// 解压后去掉 dist 层整体强制覆盖到 mp-web 目录。
+        /// force 为 true（勾选“更新时强制更新前端资源和后端认证和站点资源”）时，版本号相同也
+        /// 重新下载覆盖：官方前端可能对同一版本号重新发布不同内容的 dist.zip（版本号不变、
+        /// 内容更新），仅比较版本号会漏更；本地版本高于要求时即使 force 也不覆盖（用户自装的
+        /// 更高版本前端不回退）。
         /// 版本支持 v3.0.1 / v3.0.1-1 / v3.0.1-beta01 等带后缀格式。
         /// </summary>
-        public static void EnsureFrontend(Action<string> log)
+        public static void EnsureFrontend(Action<string> log, bool force = false)
         {
             string versionPy = Path.Combine(AppConfig.CurrentBackendDir, "version.py");
             string frontendVersion = ReadFrontendVersion(versionPy);
@@ -112,14 +116,31 @@ namespace MoviePilot_V3.Services
                 return;
             }
 
-            // 对比 mp-web\version.txt：后端要求版本不高于当前版本时跳过下载（带后缀的版本号也可正确比较）
+            // 对比 mp-web\version.txt：本地版本高于要求时跳过（用户自装的更高版本前端不覆盖）；
+            // 版本相同且未勾选“强制更新资源”时也跳过——官方同一版本号可能重新发布不同内容，
+            // 勾选后即使版本相同也重新下载覆盖（带后缀的版本号也可正确比较）
             string currentVersion = ReadVersionFile(Path.Combine(AppConfig.FRONTEND_DIR, "version.txt"));
-            if (currentVersion != null && CompareFrontendVersions(frontendVersion, currentVersion) <= 0)
+            int versionCmp = currentVersion == null
+                ? 1
+                : CompareFrontendVersions(frontendVersion, currentVersion);
+            if (versionCmp < 0)
             {
-                log("前端已是最新（本地 " + currentVersion + "，要求 " + frontendVersion + "），跳过下载");
+                log("前端本地版本高于要求（本地 " + currentVersion + "，要求 " + frontendVersion + "），跳过下载");
                 return;
             }
-            log("前端版本 " + (currentVersion ?? "未知") + " 低于要求 " + frontendVersion + "，开始下载...");
+            if (versionCmp == 0)
+            {
+                if (!force)
+                {
+                    log("前端已是最新（本地 " + currentVersion + "，要求 " + frontendVersion + "），跳过下载");
+                    return;
+                }
+                log("前端版本相同（" + currentVersion + "），按强制更新配置重新下载覆盖（官方同版本号可能更新内容）...");
+            }
+            else
+            {
+                log("前端版本 " + (currentVersion ?? "未知") + " 低于要求 " + frontendVersion + "，开始下载...");
+            }
 
             string archive = Path.Combine(AppConfig.TMP_DIR, "frontend-dist-" + frontendVersion + ".zip");
             string url = FrontendReleaseBase + frontendVersion + "/dist.zip";
@@ -587,7 +608,8 @@ namespace MoviePilot_V3.Services
 
         // ==================== 站点资源（GitHub raw，携带 Token） ====================
 
-        /// <summary>确保站点资源就绪；force 为 true（download.flag 触发）时强制重新下载替换，
+        /// <summary>确保认证 / 站点资源就绪（认证资源 sites.*.pyd、站点资源 user.sites.v3.bin）；force 为 true
+        /// （download.flag 或“更新时强制更新”配置触发）时强制重新下载替换，
         /// 先备份旧文件，下载失败或校验不通过时恢复旧文件；全部成功返回 true。</summary>
         private static bool EnsureSiteFiles(Action<string> log, bool force = false)
         {
@@ -632,7 +654,7 @@ namespace MoviePilot_V3.Services
                 else
                 {
                     TryDelete(pydBackup);
-                    log(force ? "站点资源已更新: " + SitesPydFileName : "站点资源下载完成: " + SitesPydFileName);
+                    log(force ? "认证资源已更新: " + SitesPydFileName : "站点资源下载完成: " + SitesPydFileName);
                 }
             }
 
@@ -665,7 +687,7 @@ namespace MoviePilot_V3.Services
             return ok;
         }
 
-        /// <summary>强制刷新站点资源（download.flag 触发）：备份旧文件后重新下载，失败时恢复旧文件；全部成功返回 true。</summary>
+        /// <summary>强制刷新认证 / 站点资源（download.flag 或“更新时强制更新”配置触发）：备份旧文件后重新下载，失败时恢复旧文件；全部成功返回 true。</summary>
         public static bool RefreshSiteFiles(Action<string> log)
         {
             return EnsureSiteFiles(log, true);

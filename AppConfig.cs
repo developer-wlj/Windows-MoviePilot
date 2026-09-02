@@ -42,7 +42,7 @@ namespace MoviePilot_V3
         public static readonly string MP_CONF_DIR = Path.Combine(BACKEND_DIR, "config");
         public static readonly string MP_LOG_DIR = Path.Combine(MP_CONF_DIR, "logs");
         public static readonly string MP_TRMP_DIR = Path.Combine(MP_CONF_DIR, "temp");
-        // 站点资源强制更新标记文件（BACKEND_DIR\config\logs；存在时启动后端前重新下载站点资源，失败保留旧文件）
+        // 认证 / 站点资源强制更新标记文件（BACKEND_DIR\config\logs；存在时启动后端前重新下载认证与站点资源，失败保留旧文件）
         public static readonly string DOWNLOAD_FLAG_FILE = Path.Combine(MP_LOG_DIR, "download.flag");
 
         // ---- freethreaded 版（MoviePilot-V3-T）独立环境目录：解释器 / venv / 后端代码与标准版完全隔离 ----
@@ -71,7 +71,7 @@ namespace MoviePilot_V3
         public static string CurrentMpTempDir { get { return IsTVersion ? MP_TRMP_DIR_T : MP_TRMP_DIR; } }
         public static string CurrentDownloadFlagFile { get { return IsTVersion ? DOWNLOAD_FLAG_FILE_T : DOWNLOAD_FLAG_FILE; } }
 
-        /// 是否存在站点资源强制更新标记（download.flag，按当前运行版本目录）。
+        /// 是否存在认证 / 站点资源强制更新标记（download.flag，按当前运行版本目录）。
         public static bool DownloadFlagExists
         {
             get { return File.Exists(CurrentDownloadFlagFile); }

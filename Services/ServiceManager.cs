@@ -304,7 +304,7 @@ namespace MoviePilot_V3.Services
             // 启动 Python 后端（入口优先级：main.py -> app.py；运行在虚拟环境中）
             if (!IsRunning("python"))
             {
-                // 存在 download.flag（站点资源强制更新标记）时先重新下载站点资源：
+                // 存在 download.flag（认证 / 站点资源强制更新标记）时先重新下载认证与站点资源：
                 // 下载成功则清理标记；失败保留旧文件与标记（下次启动重试）
                 if (AppConfig.DownloadFlagExists)
                 {
@@ -313,7 +313,7 @@ namespace MoviePilot_V3.Services
                         try
                         {
                             File.Delete(AppConfig.CurrentDownloadFlagFile);
-                            log("站点资源更新完成，已清理 download.flag 标记");
+                            log("认证 / 站点资源更新完成，已清理 download.flag 标记");
                         }
                         catch (Exception ex)
                         {
@@ -322,7 +322,7 @@ namespace MoviePilot_V3.Services
                     }
                     else
                     {
-                        log("警告: 站点资源更新失败，已保留原有文件（download.flag 保留，下次启动重试）");
+                        log("警告: 认证 / 站点资源更新失败，已保留原有文件（download.flag 保留，下次启动重试）");
                     }
                 }
                 // 同步站点资源：升级包（config\temp\moviepilot-update\resources）附带 *.pyd / *.bin 时移动到站点资源目录

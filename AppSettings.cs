@@ -23,6 +23,8 @@ namespace MoviePilot_V3
         public const int DefaultStatusMonitorSec = 5;
         // 启动时驻留系统托盘（不显示主窗口），默认关闭（启动时显示主窗口）
         public const bool DefaultStartMinimizedToTray = false;
+        // 更新时强制更新前端资源与后端认证 / 站点资源，默认开启：官方可能对同一版本号重新发布不同内容
+        public const bool DefaultForceUpdateResources = true;
         // 运行版本默认值：标准版（MoviePilot-V3；freethreaded 版为 MoviePilot-V3-T）
         public const string DefaultRunVersion = "MoviePilot-V3";
 
@@ -39,6 +41,10 @@ namespace MoviePilot_V3
         public string RunVersion { get; set; } = DefaultRunVersion;
         // 启动时驻留系统托盘（不显示主窗口），默认关闭
         public bool StartMinimizedToTray { get; set; } = DefaultStartMinimizedToTray;
+        // 更新时（立即升级版本 / 代码冲突时点我）强制更新前端资源与后端认证 / 站点资源（默认开启）：
+        // 前端 dist.zip 可能同一版本号被官方重新发布（版本号不变、内容变化），仅按版本号比较会漏更；
+        // 认证资源（sites.cp314(-t)-win_amd64.pyd）与站点资源（user.sites.v3.bin）也一并强制重新下载覆盖
+        public bool ForceUpdateResources { get; set; } = DefaultForceUpdateResources;
 
         // 启动时检查并更新版本（对比官方最新标签，默认关闭）
         public bool AutoUpdateOnStart { get; set; } = false;
@@ -156,6 +162,13 @@ namespace MoviePilot_V3
                                     s.AutoUpdateOnStart = au;
                                 }
                                 break;
+                            case "force_update_resources":
+                                bool fr;
+                                if (bool.TryParse(value, out fr))
+                                {
+                                    s.ForceUpdateResources = fr;
+                                }
+                                break;
                             case "auto_start_services":
                                 bool as2;
                                 if (bool.TryParse(value, out as2))
@@ -232,6 +245,7 @@ namespace MoviePilot_V3
                 sb.AppendLine("status_monitor_sec=" + StatusMonitorSec);
                 sb.AppendLine("start_minimized_to_tray=" + StartMinimizedToTray);
                 sb.AppendLine("auto_update_on_start=" + AutoUpdateOnStart);
+                sb.AppendLine("force_update_resources=" + ForceUpdateResources);
                 sb.AppendLine("auto_start_services=" + AutoStartServices);
                 sb.AppendLine("debug_log=" + DebugLog);
                 sb.AppendLine("prevent_sleep=" + PreventSleep);

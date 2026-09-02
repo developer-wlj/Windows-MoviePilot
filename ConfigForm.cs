@@ -20,6 +20,7 @@ namespace MoviePilot_V3
         private CheckBox chkPreventSleep;
         private CheckBox chkDebugLog;
         private CheckBox chkAutoUpdate;
+        private CheckBox chkForceUpdate;
         private CheckBox chkAutoStart;
         private CheckBox chkTrayStart;
         private Button btnOK;
@@ -91,8 +92,8 @@ namespace MoviePilot_V3
             {
                 Icon = windowIcon;
             }
-            // 高度 590：运行版本 + 四行数值配置 + GitHub Token + 代理（类型/地址/端口）+ 五个开关 + 操作按钮行 + 确定/取消行
-            ClientSize = new Size(480, 590);
+            // 高度 620：运行版本 + 四行数值配置 + GitHub Token + 代理（类型/地址/端口）+ 六个开关 + 操作按钮行 + 确定/取消行
+            ClientSize = new Size(480, 620);
             BackColor = bg;
             ForeColor = fg;
             Font = uiFont;
@@ -279,13 +280,24 @@ namespace MoviePilot_V3
                 Location = new Point(20, 400)
             };
 
+            // 更新时强制更新前端资源与后端认证 / 站点资源（默认勾选）：
+            // 官方前端可能对同一版本号重新发布不同内容的 dist.zip（版本号不变、内容更新），
+            // 仅按版本号比较会漏更；勾选后立即升级 / 源码运行时即使版本相同也重新下载覆盖
+            chkForceUpdate = new CheckBox
+            {
+                Text = "更新时强制更新前端资源和后端认证和站点资源",
+                AutoSize = true,
+                ForeColor = fg,
+                Location = new Point(20, 430)
+            };
+
             // 启动时自动启动 Nginx 和 Python
             chkAutoStart = new CheckBox
             {
                 Text = "打开应用自动启动 Nginx 和 Python",
                 AutoSize = true,
                 ForeColor = fg,
-                Location = new Point(20, 430)
+                Location = new Point(20, 460)
             };
 
             // 启动时驻留系统托盘（不显示主窗口）
@@ -294,7 +306,7 @@ namespace MoviePilot_V3
                 Text = "启动时驻留托盘（不显示主窗口）",
                 AutoSize = true,
                 ForeColor = fg,
-                Location = new Point(20, 460)
+                Location = new Point(20, 490)
             };
 
             // 立即升级版本（保存配置后触发 git pull 升级流程）
@@ -304,7 +316,7 @@ namespace MoviePilot_V3
                 BackColor = Color.FromArgb(60, 60, 60),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
-                Location = new Point(20, 494),
+                Location = new Point(20, 524),
                 Size = new Size(120, 38)
             };
             btnUpgradeNow.Click += BtnUpgradeNow_Click;
@@ -316,7 +328,7 @@ namespace MoviePilot_V3
                 BackColor = Color.FromArgb(60, 60, 60),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
-                Location = new Point(ClientSize.Width - 160 - 20, 494),
+                Location = new Point(ClientSize.Width - 160 - 20, 524),
                 Size = new Size(160, 38)
             };
             btnFixConflict.Click += BtnFixConflict_Click;
@@ -328,7 +340,7 @@ namespace MoviePilot_V3
                 AutoSize = false,
                 TextAlign = ContentAlignment.MiddleRight,
                 ForeColor = labelGray,
-                Location = new Point(20, 464),
+                Location = new Point(20, 494),
                 Size = new Size(ClientSize.Width - 40, 20)
             };
 
@@ -340,7 +352,7 @@ namespace MoviePilot_V3
                 BackColor = Color.FromArgb(60, 60, 60),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
-                Location = new Point(132, 540),
+                Location = new Point(132, 570),
                 Size = new Size(100, 38)
             };
             btnOK.Click += BtnOK_Click;
@@ -352,7 +364,7 @@ namespace MoviePilot_V3
                 BackColor = Color.FromArgb(60, 60, 60),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
-                Location = new Point(247, 540),
+                Location = new Point(247, 570),
                 Size = new Size(100, 38)
             };
             CancelButton = btnCancel;
@@ -378,6 +390,7 @@ namespace MoviePilot_V3
             Controls.Add(chkPreventSleep);
             Controls.Add(chkDebugLog);
             Controls.Add(chkAutoUpdate);
+            Controls.Add(chkForceUpdate);
             Controls.Add(chkAutoStart);
             Controls.Add(chkTrayStart);
             Controls.Add(btnUpgradeNow);
@@ -425,6 +438,7 @@ namespace MoviePilot_V3
             chkPreventSleep.Checked = s.PreventSleep;
             chkDebugLog.Checked = s.DebugLog;
             chkAutoUpdate.Checked = s.AutoUpdateOnStart;
+            chkForceUpdate.Checked = s.ForceUpdateResources;
             chkAutoStart.Checked = s.AutoStartServices;
             chkTrayStart.Checked = s.StartMinimizedToTray;
             txtToken.Text = s.GitHubToken;
@@ -543,6 +557,7 @@ namespace MoviePilot_V3
                 s.PreventSleep = chkPreventSleep.Checked;
                 s.DebugLog = chkDebugLog.Checked;
                 s.AutoUpdateOnStart = chkAutoUpdate.Checked;
+                s.ForceUpdateResources = chkForceUpdate.Checked;
                 s.AutoStartServices = chkAutoStart.Checked;
                 s.StartMinimizedToTray = chkTrayStart.Checked;
                 s.GitHubToken = txtToken.Text.Trim();
