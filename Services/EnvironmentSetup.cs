@@ -671,6 +671,61 @@ namespace MoviePilot_V3.Services
             return EnsureSiteFiles(log, true);
         }
 
+        /// <summary>
+        /// 同步升级包附带的站点资源：后端升级目录（CurrentMpTempDir\moviepilot-update\resources）
+        /// 中存在 *.pyd / *.bin 文件（有其一或两者皆有）时，移动到当前运行版本的站点资源目录
+        /// （CurrentSiteDir），供后端重启后加载（移动即用掉即清，启动 / 升级两处调用共用本方法）。
+        /// </summary>
+        /// <param name="log">日志回调（后台线程调用，调用方需自行封送）</param>
+        public static void SyncSiteResourcesFromUpdate(Action<string> log)
+        {
+            string resourcesDir = Path.Combine(AppConfig.CurrentMpTempDir, "moviepilot-update", "resources");
+            if (!Directory.Exists(resourcesDir))
+            {
+                return; // 升级包未附带站点资源目录
+            }
+            try
+            {
+                bool moved = false;
+                foreach (string pattern in new[] { "*.pyd", "*.bin" })
+                {
+                    foreach (string src in Directory.GetFiles(resourcesDir, pattern))
+                    {
+                        string dest = Path.Combine(AppConfig.CurrentSiteDir, Path.GetFileName(src));
+                        // File.Move 在 .NET Framework 上不支持覆盖，先删旧文件再移动
+                        if (File.Exists(dest))
+                        {
+                            File.Delete(dest);
+                        }
+                        File.Move(src, dest);
+                        log("已移动升级包站点资源: " + Path.GetFileName(src));
+                        moved = true;
+                    }
+                }
+                if (!moved)
+                {
+                    log("升级包 resources 目录未发现 *.pyd / *.bin 文件，跳过站点资源同步");
+                    return;
+                }
+                // 资源已全部移走：清理空的 resources 目录，下次启动不再重复扫描
+                try
+                {
+                    if (Directory.GetFileSystemEntries(resourcesDir).Length == 0)
+                    {
+                        Directory.Delete(resourcesDir);
+                    }
+                }
+                catch
+                {
+                    // 目录非空或被占用时保留，不影响移动结果
+                }
+            }
+            catch (Exception ex)
+            {
+                log("同步升级包站点资源失败: " + ex.Message);
+            }
+        }
+
         /// <summary>强制刷新前备份现有文件；返回 false 表示有旧文件但备份失败（应中止更新以保留原文件）。</summary>
         private static bool TryBackupSiteFile(string file, bool force, out string backup, Action<string> log)
         {
