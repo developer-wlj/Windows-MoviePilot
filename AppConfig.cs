@@ -41,6 +41,7 @@ namespace MoviePilot_V3
         public static readonly string SITE_DIR = Path.Combine(BACKEND_DIR, "app", "application", "site");
         public static readonly string MP_CONF_DIR = Path.Combine(BACKEND_DIR, "config");
         public static readonly string MP_LOG_DIR = Path.Combine(MP_CONF_DIR, "logs");
+        public static readonly string MP_TRMP_DIR = Path.Combine(MP_CONF_DIR, "temp");
         // 站点资源强制更新标记文件（BACKEND_DIR\config\logs；存在时启动后端前重新下载站点资源，失败保留旧文件）
         public static readonly string DOWNLOAD_FLAG_FILE = Path.Combine(MP_LOG_DIR, "download.flag");
 
@@ -51,6 +52,7 @@ namespace MoviePilot_V3
         public static readonly string SITE_DIR_T = Path.Combine(BACKEND_DIR_T, "app", "application", "site");
         public static readonly string MP_CONF_DIR_T = Path.Combine(BACKEND_DIR_T, "config");
         public static readonly string MP_LOG_DIR_T = Path.Combine(MP_CONF_DIR_T, "logs");
+        public static readonly string MP_TRMP_DIR_T = Path.Combine(MP_CONF_DIR_T, "temp");
         public static readonly string DOWNLOAD_FLAG_FILE_T = Path.Combine(MP_LOG_DIR_T, "download.flag");
 
         // ---- 当前运行版本（面板配置"运行版本"决定：标准版 MoviePilot-V3 / freethreaded 版 MoviePilot-V3-T）----
@@ -66,6 +68,7 @@ namespace MoviePilot_V3
         public static string CurrentSiteDir { get { return IsTVersion ? SITE_DIR_T : SITE_DIR; } }
         public static string CurrentMpConfDir { get { return IsTVersion ? MP_CONF_DIR_T : MP_CONF_DIR; } }
         public static string CurrentMpLogDir { get { return IsTVersion ? MP_LOG_DIR_T : MP_LOG_DIR; } }
+        public static string CurrentMpTempDir { get { return IsTVersion ? MP_TRMP_DIR_T : MP_TRMP_DIR; } }
         public static string CurrentDownloadFlagFile { get { return IsTVersion ? DOWNLOAD_FLAG_FILE_T : DOWNLOAD_FLAG_FILE; } }
 
         /// 是否存在站点资源强制更新标记（download.flag，按当前运行版本目录）。

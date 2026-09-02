@@ -325,6 +325,8 @@ namespace MoviePilot_V3.Services
                         log("警告: 站点资源更新失败，已保留原有文件（download.flag 保留，下次启动重试）");
                     }
                 }
+                // 同步站点资源：升级包（config\temp\moviepilot-update\resources）附带 *.pyd / *.bin 时移动到站点资源目录
+                EnvironmentSetup.SyncSiteResourcesFromUpdate(log);
 
                 // 站点资源检查：缺失或不完整时后端无法启动，拒绝启动并提示
                 if (!EnvironmentSetup.SiteFilesReady())
