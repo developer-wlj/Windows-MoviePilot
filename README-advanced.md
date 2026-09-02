@@ -153,12 +153,12 @@ Debug 构建将 `Configuration` 改为 `Debug`，产物输出到 `bin\` 目录�
 MoviePilot-V3.exe -c start     # 启动服务（首次运行自动准备环境：下载组件、建虚拟环境、同步代码与补丁）
 MoviePilot-V3.exe -c stop      # 停止全部服务（优雅退出，超时强制结束）
 MoviePilot-V3.exe -c restart   # 重启服务（先确保环境就绪 → 停止 → 启动；纯重启，不检查更新）
-MoviePilot-V3.exe -c upgrade   # 升级版本（与配置窗口「立即升级版本」一致：停止 → 更新代码与补丁 → 安装依赖 → 同步前端 → 重启服务）
+MoviePilot-V3.exe -c update   # 升级版本（与配置窗口「立即升级版本」一致：停止 → 更新代码与补丁 → 安装依赖 → 同步前端 → 重启服务）
 ```
 
 - 命令执行日志：面板正在运行时实时显示在面板「运行日志」区；面板未运行时写入 `logs\cmd.log`
 - `-c` 后接未知命令、或首个参数不是 `-c` 时，提示支持的命令列表后退出
-- **restart 特例**：若后端配置 `server\config\app.env` 中设置了 `MOVIEPILOT_AUTO_UPDATE=release`，`-c restart` 将先检查官方更新并升级（等效 Docker 容器重启自动更新），再启动服务
+- **restart 特例**：若后端配置 `server\config\app.env` 中设置了 `MOVIEPILOT_AUTO_UPDATE=release/dev`，`-c restart` 将先检查官方更新并升级（等效 Docker 容器重启自动更新），再启动服务
 - **面板交互**：托盘图标**左键单击**切换主窗口显示 / 隐藏（右键弹出菜单）；点击「重启服务」前会弹出**二次确认对话框**，防止误操作
 - 不带参数直接双击即打开可视化面板
 

@@ -138,7 +138,7 @@ namespace MoviePilot_V3
             return GIT_CMD_DIR + ";" + GIT_BIN_DIR + ";" + GIT_USR_BIN_DIR + ";" +
                    Path.Combine(CurrentVenvDir, "Scripts") + ";" +
                    Path.Combine(CurrentPythonDir, "Scripts") + ";" + CurrentPythonDir + ";" +
-                   UV_DIR + ";" + NGINX_DIR;
+                   UV_DIR + ";" + NGINX_DIR + ";" + BASE_DIR;
         }
     }
 }

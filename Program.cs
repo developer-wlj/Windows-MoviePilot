@@ -17,7 +17,7 @@ namespace MoviePilot_V3
         [STAThread]
         static void Main(string[] args)
         {
-            // 命令行模式：-c <start|stop|restart|upgrade>，执行后退出，不显示窗口
+            // 命令行模式：-c <start|stop|restart|update>，执行后退出，不显示窗口
             // （日志通过命名管道发送到面板运行日志区；面板未运行时静默执行）
             if (args != null && args.Length > 0)
             {
@@ -33,12 +33,12 @@ namespace MoviePilot_V3
                     }
                     else
                     {
-                        SendLinesToPanel("缺少命令参数，用法: MoviePilot-V3 -c <start|stop|restart|upgrade>");
+                        SendLinesToPanel("缺少命令参数，用法: MoviePilot-V3 -c <start|stop|restart|update>");
                     }
                     return;
                 }
                 // 未知参数：提示后退出，不启动面板
-                SendLinesToPanel("未知参数: " + args[0] + "（支持: -c start / stop / restart / upgrade）");
+                SendLinesToPanel("未知参数: " + args[0] + "（支持: -c start / stop / restart / update）");
                 return;
             }
 
@@ -94,7 +94,7 @@ namespace MoviePilot_V3
             }
         }
 
-        /// 命令行模式：执行服务操作（upgrade 与面板"立即升级版本"一致），日志实时发送到面板运行日志区。
+        /// 命令行模式：执行服务操作（update 与面板"立即升级版本"一致），日志实时发送到面板运行日志区。
         private static void RunCommandLine(string command)
         {
             // 尝试连接面板日志管道；面板未运行时连接失败，日志转写文件（logs\cmd.log）
@@ -161,12 +161,12 @@ namespace MoviePilot_V3
                         ServiceManager.StopServices(log);
                         ServiceManager.StartServices(log);
                         break;
-                    case "upgrade":
+                    case "update":
                         // 与面板配置窗口"立即升级版本"一致：升级流程内部自行停止服务、更新代码、安装依赖并重启服务
                         UpgradeService.Upgrade(log, (success, message) => log(message));
                         break;
                     default:
-                        log("未知命令: " + command + "（支持: start / stop / restart / upgrade）");
+                        log("未知命令: " + command + "（支持: start / stop / restart / update）");
                         break;
                 }
             }
