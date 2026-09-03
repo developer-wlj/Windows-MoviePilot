@@ -86,12 +86,12 @@ namespace MoviePilot_V3.Services
                 string cloneArgs = "clone --branch v3 --single-branch " + VersionRepo + " \"" + AppConfig.CurrentBackendDir + "\"";
                 if (GetOfficialLatestTag(gitExe, envPath, out latestTag, out latestTagHash, log))
                 {
-                    log("首次克隆使用官方最新标签 " + latestTag);
+                    log("首次克隆使用官方最新标签 " + latestTag + ", 正在克隆...");
                     cloneArgs = "clone --branch " + latestTag + " --single-branch " + VersionRepo + " \"" + AppConfig.CurrentBackendDir + "\"";
                 }
                 else
                 {
-                    log("未获取到官方版本标签，回退克隆 v3 分支");
+                    return "未获取到官方版本标签，请检查网络或稍后重试。";
                 }
                 string cloneOutput = RunCommand(gitExe, cloneArgs, AppConfig.BASE_DIR, envPath);
                 if (!Directory.Exists(Path.Combine(AppConfig.CurrentBackendDir, ".git")))
@@ -320,56 +320,9 @@ namespace MoviePilot_V3.Services
             }
             else
             {
-                // 官方源（jxxghp）无版本标签时回退到官方 v3 分支（本地带 cherry-pick 补丁与
-                // 远端分叉，git pull 会因“divergent branches”失败，改为 fetch + 重建，与标签路线同构）
-                log("官方源未找到版本标签，回退以官方 v3 分支为准...");
-                string fetchOutput = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" fetch " + VersionRepo + " v3",
-                    AppConfig.CurrentBackendDir, envPath);
-                if (fetchOutput.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    log("回退拉取官方 v3 分支失败，跳过本次升级: " + fetchOutput);
-                    output = "UPGRADE_SKIPPED";
-                }
-                else
-                {
-                    string remoteHash = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" rev-parse FETCH_HEAD",
-                        AppConfig.CurrentBackendDir, envPath).Trim();
-                    string localHash = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" rev-parse HEAD",
-                        AppConfig.CurrentBackendDir, envPath).Trim();
-                    log("官方 v3 分支最新: " + ShortHash(remoteHash) + "，本地: " + ShortHash(localHash));
-                    if (IsAncestorOfHEAD(gitExe, envPath, remoteHash))
-                    {
-                        log("本地已是最新版本");
-                        output = "Already up to date";
-                    }
-                    else
-                    {
-                        log("发现新版本，签出覆盖 v3 分支...");
-                        // 升级会重建分支覆盖已跟踪模板，先备份可能被用户修改过的 category.yaml
-                        backedUp = BackupCategoryYaml(log);
-                        string rebuildError = RebuildV3FromCommit(gitExe, envPath, remoteHash, "官方 v3 分支", log);
-                        if (rebuildError != null)
-                        {
-                            // 官方提交不可用或签出失败：放弃升级，继续使用当前版本（不视为错误）
-                            log("放弃本次升级，继续使用当前版本: " + rebuildError);
-                            output = "UPGRADE_SKIPPED";
-                        }
-                        else
-                        {
-                            log("v3 分支已更新到官方最新");
-                            output = "更新成功";
-                        }
-                    }
-                }
-                // 无论是否更新，都补打一次补丁（幂等，已应用过的自动跳过）
-                string patchError = ApplyRebasePatchesWithFallback(gitExe, envPath, log);
-                if (patchError != null)
-                {
-                    onFinished(false, patchError);
-                    return;
-                }
-                // 官方更新成功：备份含用户修改时覆盖回，保留用户对分类的修改
-                RestoreCategoryYaml(log, backedUp);
+                // 官方源（jxxghp）无版本标签时退出升级流程，并弹窗提示用户
+                onFinished(false, "未获取到官方版本标签，请检查网络或稍后重试。");
+                return;
             }
             log("Git输出: " + output);
 
@@ -389,7 +342,7 @@ namespace MoviePilot_V3.Services
             else if (output.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 ||
                      output.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                log("升级出错，请检查网络或仓库配置");
+                log("升级出错，请检查网络");
                 resultMessage = "升级失败:\n" + output;
                 failed = true;
             }
@@ -519,7 +472,7 @@ namespace MoviePilot_V3.Services
             {
                 return "官方源未找到版本标签，无法强制重建 v3 分支。";
             }
-            log("官方最新标签: " + latestTag + " (" + ShortHash(latestTagHash) + ")");
+            log("官方最新标签: " + latestTag + " (" + ShortHash(latestTagHash) + ") 正在克隆...");
 
             // 强制签出 v3 最新标签 hash：checkout -f -B v3 重建分支（-f 强制覆盖工作树/index
             // 残留，如预演/手动修改等，保证签出结果与官方标签完全一致），本地 cherry-pick 全部丢弃
@@ -571,7 +524,7 @@ namespace MoviePilot_V3.Services
             }
 
             // 远程补丁分支最新 rebase 提交的提交时间（unix 时间戳）
-            string ctOutput = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" log -1 -i --grep=rebase --format=%ct FETCH_HEAD",
+            string ctOutput = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" log -1 --grep=\"" + @"^rebase$" + "\" --format=%ct FETCH_HEAD",
                 AppConfig.CurrentBackendDir, envPath).Trim();
             long remoteUnix;
             if (ctOutput.Length == 0 || ctOutput.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -721,35 +674,9 @@ namespace MoviePilot_V3.Services
             }
             else
             {
-                // 官方源（jxxghp）无版本标签：回退到官方 v3 分支（本地带 cherry-pick 补丁与远端分叉，
-                // git pull 会因“divergent branches”失败，改为 fetch + 重建，与标签路线同构）
-                log("官方源未找到版本标签，回退以官方 v3 分支为准...");
-                string fetchOutput = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" fetch " + VersionRepo + " v3",
-                    AppConfig.CurrentBackendDir, envPath);
-                if (fetchOutput.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    log("回退拉取官方 v3 分支失败，跳过本次更新");
-                    return;
-                }
-                string remoteHash = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" rev-parse FETCH_HEAD",
-                    AppConfig.CurrentBackendDir, envPath).Trim();
-                if (IsAncestorOfHEAD(gitExe, envPath, remoteHash))
-                {
-                    log("本地已是最新版本，无需更新");
-                }
-                else
-                {
-                    log("发现新版本，签出覆盖 v3 分支...");
-                    // 重建会覆盖已跟踪模板，先备份可能被用户修改过的 category.yaml
-                    backedUp = BackupCategoryYaml(log);
-                    string rebuildError = RebuildV3FromCommit(gitExe, envPath, remoteHash, "官方 v3 分支", log);
-                    if (rebuildError != null)
-                    {
-                        log("跳过本次更新，继续使用当前版本: " + rebuildError);
-                        return;
-                    }
-                    log("v3 分支已更新到官方最新");
-                }
+                // 官方源（jxxghp）无版本标签时退出流程
+                log("未获取到官方版本标签，请检查网络或稍后重试。");
+                return;
             }
 
             // 4. 更新后重新打补丁：从 gitee v3-rebase 分支 cherry-pick 标题含 rebase 的提交
@@ -915,7 +842,7 @@ namespace MoviePilot_V3.Services
             }
 
             // 2. 筛选提交信息包含 rebase 的提交（忽略大小写），逐个 cherry-pick
-            string logOutput = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" log --reverse -i --grep=rebase --format=%H FETCH_HEAD",
+            string logOutput = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" log --reverse --grep=\"" + @"^rebase$" + "\" --format=%H FETCH_HEAD",
                 AppConfig.CurrentBackendDir, envPath).Trim();
             string[] patches = logOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             if (patches.Length == 0)
@@ -959,7 +886,7 @@ namespace MoviePilot_V3.Services
         /// 视为无新补丁，避免重复重建。
         private static void RecordRebaseSyncTime(string gitExe, string envPath)
         {
-            string ctOutput = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" log -1 -i --grep=rebase --format=%ct FETCH_HEAD",
+            string ctOutput = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" log -1 --grep=\"" + @"^rebase$" + "\" --format=%ct FETCH_HEAD",
                 AppConfig.CurrentBackendDir, envPath).Trim();
             long remoteUnix;
             if (ctOutput.Length == 0 || ctOutput.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) >= 0 ||
