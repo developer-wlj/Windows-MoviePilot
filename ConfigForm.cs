@@ -1,5 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
+using System.IO;
+using System.Text;
 using System.Windows.Forms;
 
 namespace MoviePilot_V3
@@ -528,6 +532,8 @@ namespace MoviePilot_V3
             try
             {
                 AppSettings s = AppSettings.Current;
+                // 本次保存的目标运行版本：先取下拉框选择值，供切换 T 版前的环境预检与写回配置共用
+                string selectedVersion = (string)cmbRunVersion.SelectedItem;
 
                 // 代理完整性校验：选了类型但地址/端口不完整或格式错误时提示，
                 // 避免静默保存无效配置（BuildProxyUrl 返回 null，表现为日志“已清空 git 全局代理”且下载不走代理）
@@ -549,11 +555,35 @@ namespace MoviePilot_V3
                     }
                 }
 
+                // freethreaded 版（MoviePilot-V3-T）环境预检：仅当本次保存将运行版本切换为 T 版时触发
+                // （当前生效版本已是 T 版时不重复打扰）。T 版后端依赖无官方预编译二进制，首次安装时由 uv
+                // 在本机实时编译源码（psycopg 需 PostgreSQL libpq，其余需 MSVC / Rust 工具链），
+                // 环境缺失必然编译失败，故保存前读取系统环境探测并提示
+                if (selectedVersion == "MoviePilot-V3-T" && s.RunVersion != "MoviePilot-V3-T")
+                {
+                    List<string> missing = ProbeTEnvironment();
+                    if (missing.Count > 0)
+                    {
+                        DialogResult dr = MessageBox.Show(this,
+                            "切换到 freethreaded 版（MoviePilot-V3-T）需要本机编译环境，首次安装依赖时 uv 会实时编译源码，\n" +
+                            "以下环境未就绪将导致依赖编译失败：\n\n" +
+                            "• " + string.Join("\n• ", missing.ToArray()) +
+                            "\n\n请参照 README-freethreaded.md 补齐（新装工具或修改 PATH 后需重启本面板生效）。\n" +
+                            "是否仍要切换到 MoviePilot-V3-T？",
+                            "T 版编译环境检测",
+                            MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                        if (dr != DialogResult.Yes)
+                        {
+                            return; // 用户放弃切换：不保存，运行版本保持原值
+                        }
+                    }
+                }
+
                 s.ShutdownTimeoutSec = (int)numTimeout.Value;
                 s.NginxPort = (int)numNginxPort.Value;
                 s.BackendPort = (int)numBackendPort.Value;
                 s.StatusMonitorSec = (int)numMonitorSec.Value;
-                s.RunVersion = (string)cmbRunVersion.SelectedItem;
+                s.RunVersion = selectedVersion;
                 s.PreventSleep = chkPreventSleep.Checked;
                 s.DebugLog = chkDebugLog.Checked;
                 s.AutoUpdateOnStart = chkAutoUpdate.Checked;
@@ -571,6 +601,91 @@ namespace MoviePilot_V3
             {
                 MessageBox.Show(this, "配置参数无效:\n" + ex.Message, "错误",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// 检测 freethreaded 版（MoviePilot-V3-T）所需的本机编译环境（读取系统 PATH 与 VS Installer 注册状态）：
+        /// ① Microsoft Visual Studio（vswhere 查询带 MSVC x64 工具链的实例）；
+        /// ② Rust（rustc 在 PATH）；③ PostgreSQL（pg_config 在 PATH）；④ MSBuild 或 dotnet（任一可用）。
+        /// 返回未就绪项的提示文案列表，全部就绪时为空。
+        private static List<string> ProbeTEnvironment()
+        {
+            List<string> missing = new List<string>();
+
+            // Visual Studio：vswhere 是 VS Installer 官方自带的实例查询工具（路径固定）；
+            // 只装 VS 而未装“使用 C++ 的桌面开发”工作负载时同样查不到匹配实例，一并提示。
+            // vswhere 无匹配实例时退出码仍为 0（实测，不能靠退出码判断），带 -property installationPath
+            // 查询时只有匹配实例才输出安装路径，故以输出非空为准
+            string vswhere = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+                "Microsoft Visual Studio", "Installer", "vswhere.exe");
+            if (string.IsNullOrEmpty(ProbeCommandOutput(vswhere,
+                "-latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath")))
+            {
+                missing.Add("Microsoft Visual Studio：未安装，或缺少“使用 C++ 的桌面开发”工作负载（依赖 MSVC 工具链 cl.exe / link.exe）");
+            }
+
+            // Rust：rustup 安装后其 bin（含 rustc）已加入用户 PATH，编译 Rust 扩展必需
+            if (ProbeCommandOutput("rustc", "--version") == null)
+            {
+                missing.Add("Rust：rustc 不在环境变量 PATH 中（编译 Rust 扩展必需，见 README-freethreaded.md 步骤 2）");
+            }
+
+            // PostgreSQL：psycopg 源码编译需按 libpq 位置，须把 PostgreSQL 安装目录的 bin（含 pg_config）加入 PATH
+            if (ProbeCommandOutput("pg_config", "--version") == null)
+            {
+                missing.Add("PostgreSQL：pg_config 不在环境变量 PATH 中（编译 psycopg 需要 libpq，见 README-freethreaded.md 步骤 4）");
+            }
+
+            // MSBuild / dotnet：命令行构建工具链，两者任一可用即可
+            if (ProbeCommandOutput("dotnet", "--version") == null && ProbeCommandOutput("msbuild", "-version") == null)
+            {
+                missing.Add("MSBuild / dotnet：两者均不可用（命令行构建需要 msbuild 或 dotnet msbuild 其中之一）");
+            }
+
+            return missing;
+        }
+
+        /// 探测外部命令可用性：返回命令的标准输出（去首尾空白）；
+        /// 找不到可执行文件（不在 PATH）、启动失败、3 秒内未退出或退出码非 0 时返回 null。
+        /// 先限时等待退出再读输出（输出量远小于管道缓冲 4KB，不会因缓冲写满而阻塞）；
+        /// 返回 null 与空字符串的区分：null=命令不可用，空串=命令可用但无输出（如 vswhere 无匹配实例）
+        private static string ProbeCommandOutput(string fileName, string arguments)
+        {
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = arguments,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    // 子进程输出为 UTF-8：强制按 UTF-8 解码（项目统一约定），
+                    // 避免中文系统（GBK 代码页）下默认按 ANSI 解码导致乱码
+                    StandardOutputEncoding = Encoding.UTF8,
+                    StandardErrorEncoding = Encoding.UTF8
+                };
+                using (Process p = Process.Start(psi))
+                {
+                    if (!p.WaitForExit(3000))
+                    {
+                        try { p.Kill(); }
+                        catch { }
+                        return null;
+                    }
+                    if (p.ExitCode != 0)
+                    {
+                        return null;
+                    }
+                    // 进程已退出，读端仍可读完管道中残留输出（写端已关闭，读到 EOF 即结束）
+                    return p.StandardOutput.ReadToEnd().Trim();
+                }
+            }
+            catch
+            {
+                // 启动失败（如命令不在 PATH 时抛 Win32Exception）一律视为不可用
+                return null;
             }
         }
     }
