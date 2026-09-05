@@ -6,6 +6,9 @@
         private System.ComponentModel.IContainer components = null;
 
         private System.Windows.Forms.Label lblTitle;
+        // 右上角新版本提示（启动后台检测到新版时显示，点击触发更新；两者都存在时并排一行）
+        private System.Windows.Forms.Label lblPanelUpdateTip;
+        private System.Windows.Forms.Label lblMpUpdateTip;
         private System.Windows.Forms.GroupBox grpStatus;
         private System.Windows.Forms.TextBox txtStatus;
         private System.Windows.Forms.GroupBox grpLog;
@@ -48,6 +51,8 @@
             this.btnSite = new System.Windows.Forms.Button();
             this.btnConfig = new System.Windows.Forms.Button();
             this.btnHide = new System.Windows.Forms.Button();
+            this.lblPanelUpdateTip = new System.Windows.Forms.Label();
+            this.lblMpUpdateTip = new System.Windows.Forms.Label();
             this.grpStatus.SuspendLayout();
             this.grpLog.SuspendLayout();
             this.SuspendLayout();
@@ -224,6 +229,36 @@
             this.btnHide.UseVisualStyleBackColor = false;
             this.btnHide.Click += new System.EventHandler(this.BtnHide_Click);
             // 
+            // lblPanelUpdateTip
+            // 
+            // 面板自身有新 Release：右对齐标题栏右上角，金黄色，点击弹窗确认后自更新（下载 exe → 替换 → 重启）
+            this.lblPanelUpdateTip.AutoSize = true;
+            this.lblPanelUpdateTip.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
+            this.lblPanelUpdateTip.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.lblPanelUpdateTip.Font = new System.Drawing.Font("微软雅黑", 10F, System.Drawing.FontStyle.Bold);
+            this.lblPanelUpdateTip.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(193)))), ((int)(((byte)(7)))));
+            this.lblPanelUpdateTip.Location = new System.Drawing.Point(900, 16);
+            this.lblPanelUpdateTip.Name = "lblPanelUpdateTip";
+            this.lblPanelUpdateTip.TabIndex = 11;
+            this.lblPanelUpdateTip.Text = "面板有新版本";
+            this.lblPanelUpdateTip.Visible = false;
+            this.lblPanelUpdateTip.Click += new System.EventHandler(this.LblPanelUpdateTip_Click);
+            // 
+            // lblMpUpdateTip
+            // 
+            // MoviePilot 后端有新版本标签：与面板提示并排（位于其左），浅绿色，点击弹窗确认后走"立即升级版本"流程
+            this.lblMpUpdateTip.AutoSize = true;
+            this.lblMpUpdateTip.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
+            this.lblMpUpdateTip.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.lblMpUpdateTip.Font = new System.Drawing.Font("微软雅黑", 10F, System.Drawing.FontStyle.Bold);
+            this.lblMpUpdateTip.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(129)))), ((int)(((byte)(199)))), ((int)(((byte)(132)))));
+            this.lblMpUpdateTip.Location = new System.Drawing.Point(790, 16);
+            this.lblMpUpdateTip.Name = "lblMpUpdateTip";
+            this.lblMpUpdateTip.TabIndex = 12;
+            this.lblMpUpdateTip.Text = "MP有新版本";
+            this.lblMpUpdateTip.Visible = false;
+            this.lblMpUpdateTip.Click += new System.EventHandler(this.LblMpUpdateTip_Click);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
@@ -239,6 +274,9 @@
             this.Controls.Add(this.grpLog);
             this.Controls.Add(this.grpStatus);
             this.Controls.Add(this.lblTitle);
+            // 更新提示置于最上层（z 序末尾），避免被横向铺满的标题 Label 覆盖
+            this.Controls.Add(this.lblPanelUpdateTip);
+            this.Controls.Add(this.lblMpUpdateTip);
             this.Margin = new System.Windows.Forms.Padding(4);
             this.MinimumSize = new System.Drawing.Size(900, 572);
             this.Name = "Form1";

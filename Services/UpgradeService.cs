@@ -700,6 +700,40 @@ namespace MoviePilot_V3.Services
         }
 
         /// <summary>
+        /// 检测当前运行版本的 MoviePilot 后端是否有官方新版本（仅检测不更新，供启动后的
+        /// 右上角“MP有新版本”提示使用）：与"立即升级版本"同一判断逻辑——官方仓库
+        /// jxxghp/MoviePilot 最新标签指向的 commit hash 未包含在本地 v3 分支历史中即视为
+        /// 有新版本（本地打过 cherry-pick 补丁后 hash 不同，必须以 merge-base 包含判断）。
+        /// Git 缺失 / 后端目录不是 Git 仓库 / 官方源不可用时返回 false（不提示）。
+        /// </summary>
+        /// <param name="log">日志回调（后台线程调用，调用方需自行封送）</param>
+        public static bool HasNewMpVersion(Action<string> log)
+        {
+            if (!File.Exists(Path.Combine(AppConfig.GIT_CMD_DIR, "git.exe")))
+            {
+                return false;
+            }
+            if (!Directory.Exists(Path.Combine(AppConfig.CurrentBackendDir, ".git")))
+            {
+                return false; // 后端代码未就绪（未点过"启动服务"）：不提示
+            }
+
+            string envPath = AppConfig.BuildEnvPath();
+            string gitExe = Path.Combine(AppConfig.GIT_CMD_DIR, "git.exe");
+            string latestTag, latestTagHash;
+            if (!GetOfficialLatestTag(gitExe, envPath, out latestTag, out latestTagHash, log, false))
+            {
+                return false; // 官方源无标签（网络/代理异常）：按无更新处理，不打扰
+            }
+            if (IsAncestorOfHEAD(gitExe, envPath, latestTagHash))
+            {
+                return false; // 官方最新标签已在本地历史中：已是最新
+            }
+            log("检测到 MoviePilot 新版本标签: " + latestTag + " (" + ShortHash(latestTagHash) + ")，本地未包含，可点击右上角的\"MP有新版本\"进行更新");
+            return true;
+        }
+
+        /// <summary>
         /// 判断指定提交 hash 是否已包含在本地 HEAD 历史中（即 hash 是 HEAD 的祖先）。
         /// 打补丁后本地 HEAD 不再是官方标签 hash 本身，版本判断必须以“是否包含”为准，
         /// 否则每次检查都会误判为新版本并重复重建分支。
@@ -719,11 +753,11 @@ namespace MoviePilot_V3.Services
         /// peeled 行优先取标签指向的 commit hash，轻量标签用标签行 hash；按语义化版本取最大者。
         /// 返回 false 表示官方源未找到版本标签（调用方回退官方 v3 分支）。
         /// </summary>
-        private static bool GetOfficialLatestTag(string gitExe, string envPath, out string latestTag, out string latestTagHash, Action<string> log)
+        private static bool GetOfficialLatestTag(string gitExe, string envPath, out string latestTag, out string latestTagHash, Action<string> log, bool isPrintLog=true)
         {
             latestTag = null;
             latestTagHash = null;
-            log("正在拉取官方标签...");
+            if (isPrintLog) log("正在拉取官方标签...");
             string lsRemote = RunCommand(gitExe, "ls-remote --tags " + VersionRepo, AppConfig.BASE_DIR, envPath);
             Dictionary<string, string> tagCommits = new Dictionary<string, string>();
             foreach (string line in lsRemote.Split('\n'))
@@ -756,7 +790,7 @@ namespace MoviePilot_V3.Services
             {
                 // 输出尾部截断后写入日志，便于排查（网络失败 / 代理不可用 / 标签格式变化）
                 string tail = lsRemote.Length > 400 ? lsRemote.Substring(lsRemote.Length - 400) : lsRemote;
-                log("ls-remote 未解析到版本标签，输出尾部: " + tail);
+                if (isPrintLog) log("ls-remote 未解析到版本标签，输出尾部: " + tail);
                 return false;
             }
 

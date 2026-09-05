@@ -30,6 +30,9 @@ namespace MoviePilot_V3
         private readonly StringBuilder pendingLogs = new StringBuilder(); // 窗口隐藏期间的日志缓存（仅 UI 线程访问）：显示时一次性补发，避免隐藏期间逐行 AppendText 拖慢显示
         private const int MaxLogChars = 500 * 1024; // 日志区文本上限：超过后截断为一半，防止无限增长拖慢界面与占用内存
         private const int MaxPendingLogChars = 200 * 1024; // 隐藏期间日志缓存上限：超过后丢弃最旧一半
+        private string pendingPanelTag; // 右上角面板提示对应的面板有新版本（点击更新时使用）
+        private bool panelUpdateRunning; // 面板自更新流程进行中（防重复触发，退出前拦截）
+        private bool updateTipsStarted; // 启动版本提示检测是否已发起（防重复）
 
         // 阻止 Windows 空闲休眠/睡眠：SetThreadExecutionState（kernel32）——
         // ES_SYSTEM_REQUIRED 阻止系统空闲进入睡眠/休眠，ES_CONTINUOUS 保持该设置直到再次调用；
@@ -332,6 +335,232 @@ namespace MoviePilot_V3
                     }
                 });
             }
+
+            // 右上角新版本提示：后台检测面板自身 Release 与当前 MP 的官方新标签（见 StartUpdateTipsCheck）
+            LayoutUpdateTips();
+            StartUpdateTipsCheck();
+
+            // 面板自更新遗留的旧版 exe（MoviePilot-V3-old.exe，更新重启时旧进程退出后文件锁才释放）：
+            // 延迟数秒后台尽力删除，不阻塞启动；删除失败留待下次启动重试
+            Task.Run(() =>
+            {
+                try { Thread.Sleep(3000); PanelUpdateService.TryDeleteOldExe(); }
+                catch { }
+            });
+        }
+
+        /// 启动后的新版本提示检测（后台执行，不阻塞界面）：
+        /// 勾选了配置"启动时更新版本"时延迟 3 分钟再执行——启动更新可能正在拉取代码 / 装依赖，
+        /// 此时检测会与更新流程抢网络，且刚更新完又提示新版本没有意义；未勾选则立即检测。
+        /// 检测两项（独立并行）：① 面板仓库 GitHub Release 新版本 → 右上角"面板有vX新版本"；
+        /// ② 当前运行版本 MP 的官方新标签 → 右上角"MP有新版本"。
+        /// 线程与子进程管理：检测任务跑在线程池后台线程（进程退出自动结束），期间启动的
+        /// curl / git 子进程注册到活动进程表，面板退出 / 关机时由 KillActiveProcesses 统一终止，
+        /// 不会在应用退出后遗留运行。
+        private void StartUpdateTipsCheck()
+        {
+            if (updateTipsStarted) return;
+            updateTipsStarted = true;
+            bool delayed = AppSettings.Current.AutoUpdateOnStart;
+            Task.Run(() =>
+            {
+                try
+                {
+                    if (delayed)
+                    {
+                        Thread.Sleep(3 * 60 * 1000);
+                    }
+                    CheckUpdateTips();
+                }
+                catch
+                {
+                    // 检测失败静默：不打扰用户，下次启动面板自动重试
+                }
+            });
+        }
+
+        /// 并行执行两项检测（相互独立，避免 git ls-remote 卡顿时拖累 GitHub API 检测），
+        /// 完成后在 UI 线程更新右上角提示（窗口可能隐藏/已销毁，均需容错）。
+        private void CheckUpdateTips()
+        {
+            Task<string> tPanel = Task.Run(() => PanelUpdateService.FetchLatestTag(Log));
+            Task<bool> tMp = Task.Run(() => UpgradeService.HasNewMpVersion(Log));
+            try { Task.WaitAll(tPanel, tMp); } catch { } // 任一项异常不影响另一项结果（下方按 IsFaulted 取值）
+            if (IsDisposed) return;
+            string tag = tPanel.IsFaulted ? null : tPanel.Result;
+            bool panelNew = tag != null && PanelUpdateService.IsNewerThanCurrent(tag);
+            bool mpNew = tMp.IsFaulted ? false : tMp.Result;
+            try
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    if (IsDisposed) return;
+                    pendingPanelTag = panelNew ? tag : null;
+                    if (lblPanelUpdateTip != null)
+                    {
+                        // 完整提示文案："面板有v1.0.4新版本"（tag 为 null 时退化为"面板有新版本"占位，不可见无影响）
+                        lblPanelUpdateTip.Text = "面板有新版本";
+                        lblPanelUpdateTip.Visible = panelNew;
+                    }
+                    if (lblMpUpdateTip != null)
+                    {
+                        lblMpUpdateTip.Visible = mpNew;
+                    }
+                    LayoutUpdateTips();
+                }));
+            }
+            catch
+            {
+                // 窗口句柄已销毁：放弃更新提示
+            }
+        }
+
+        /// 右上角更新提示右对齐标题栏同一行：面板提示与 MP 提示水平并排（面板提示贴右缘、
+        /// MP 提示在其左），两者都存在时不再上下排列——标题栏高度有限，上下排列占两行会让
+        /// 文字显示不全；距右缘 12px、两提示间距 10px。AutoSize=false，宽高用 PreferredSize
+        /// 每次实时量度（按当前字体与文本，不依赖 AutoSize 缓存尺寸），避免缩放/字体变化后
+        /// 控件尺寸与文字不一致导致文字裁切或不可见；位置在显示 / 窗口尺寸变化时重算。
+        private void LayoutUpdateTips()
+        {
+            if (lblPanelUpdateTip == null || lblMpUpdateTip == null) return;
+            // 固定 AutoSize=false：AutoSize 的缓存尺寸可能在字体缩放/窗口布局后与当前字体
+            // 量度不一致（表现为文字只显示一半甚至不可见），改用 PreferredSize 实时量度宽高
+            lblPanelUpdateTip.AutoSize = false;
+            lblMpUpdateTip.AutoSize = false;
+            lblPanelUpdateTip.Size = lblPanelUpdateTip.PreferredSize;
+            lblMpUpdateTip.Size = lblMpUpdateTip.PreferredSize;
+            // 置最前层，防止与铺满标题栏的标题 Label 等兄弟控件重叠时被盖住
+            lblPanelUpdateTip.BringToFront();
+            lblMpUpdateTip.BringToFront();
+            const int margin = 12;
+            const int gap = 10;
+            const int topY = 15;
+            int right = ClientSize.Width - margin;
+            if (lblPanelUpdateTip.Visible)
+            {
+                // 面板提示贴最右，MP 提示随后排在其左（并排一行，不再上下排列）
+                lblPanelUpdateTip.Location = new Point(right - lblPanelUpdateTip.Width, topY);
+                right = lblPanelUpdateTip.Left - gap;
+            }
+            if (lblMpUpdateTip.Visible)
+            {
+                lblMpUpdateTip.Location = new Point(right - lblMpUpdateTip.Width, topY);
+            }
+        }
+
+        /// 点击"面板有vX新版本"：确认后下载新版 exe → 替换当前 exe → 重启面板（后台执行）。
+        private void LblPanelUpdateTip_Click(object sender, EventArgs e)
+        {
+            string tag = pendingPanelTag;
+            if (string.IsNullOrEmpty(tag) || panelUpdateRunning)
+            {
+                return;
+            }
+            if (MessageBox.Show(this,
+                "发现面板新版本 " + tag + "（当前 v" + AppConfig.APP_VERSION + "）。\n" +
+                "是否立即下载并更新？\n\n更新完成后面板将自动退出并重启，正在运行的 MoviePilot 服务不受影响。",
+                "面板更新", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            {
+                return;
+            }
+            RunPanelSelfUpdate(tag);
+        }
+
+        /// 点击"MP有新版本"：确认后走与配置窗口"立即升级版本"相同的升级流程
+        /// （UpgradeService.Upgrade：内部自行停止服务、更新代码、装依赖并重启服务）。
+        private void LblMpUpdateTip_Click(object sender, EventArgs e)
+        {
+            if (panelUpdateRunning)
+            {
+                return; // 面板自更新进行中：不与面板重启流程并发
+            }
+            if (MessageBox.Show(this,
+                "检测到选择的运行版本（" + AppSettings.Current.RunVersion + "）有新版本。\n" +
+                "是否立即升级？\n\n升级将停止并重启 MoviePilot 服务（含依赖安装与资源同步），耗时可能较长。",
+                "升级 MoviePilot", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            {
+                return;
+            }
+            // 进入升级流程前先撤销提示：防重复触发；升级结束后（无论成败）后台重新检测并恢复提示
+            if (lblMpUpdateTip != null)
+            {
+                lblMpUpdateTip.Visible = false;
+            }
+            LayoutUpdateTips();
+            RunUpgrade();
+        }
+
+        /// 后台执行面板自更新：下载（支持 GitHub Token / 代理）→ 校验 exe → 改名旧 exe 为
+        /// MoviePilot-V3-old.exe → 新 exe 移入运行目录 → 启动新版并退出当前进程。
+        /// 下载 curl 注册活动进程表：中途退出面板会被 KillActiveProcesses 终止，不遗留；
+        /// 任何失败自动回滚并恢复界面（成功后进程已退出，无需恢复）。
+        private void RunPanelSelfUpdate(string tag)
+        {
+            if (panelUpdateRunning) return;
+            panelUpdateRunning = true;
+            SetBusy(true);
+            Task.Run(() =>
+            {
+                try
+                {
+                    Log("开始更新面板到 " + tag + " ...");
+                    string downloaded = PanelUpdateService.DownloadAsset(tag, Log);
+                    if (downloaded == null)
+                    {
+                        LogError("面板更新失败：新版 exe 下载未完成");
+                        NotifyPanelUpdateError("面板新版本下载失败，请检查网络 / 代理 / GitHub Token 后重试。");
+                        return;
+                    }
+                    string error = PanelUpdateService.InstallUpdate(downloaded, Log);
+                    if (error != null)
+                    {
+                        LogError("面板更新失败: " + error);
+                        NotifyPanelUpdateError(error);
+                        return;
+                    }
+                    Log("面板已更新到 " + tag + "，正在重启...");
+                    try
+                    {
+                        // 当前 exe 路径已被新版占据：直接启动新实例
+                        System.Diagnostics.Process.Start(Application.ExecutablePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError("启动新版面板失败: " + ex.Message);
+                    }
+                    // 退出前终止仍在运行的检测子进程（curl / git 等已注册活动进程表），
+                    // 避免面板重启后遗留后台命令；新启动的面板进程未注册，不受影响
+                    EnvironmentSetup.KillActiveProcesses();
+                    // 立即退出本进程（不停止 MoviePilot 服务：它们是独立进程，新版面板会自动接管状态监控）
+                    Environment.Exit(0);
+                }
+                catch (Exception ex)
+                {
+                    LogError("面板自更新异常: " + ex.Message);
+                    NotifyPanelUpdateError("面板自更新过程出现异常:\n" + ex.Message);
+                }
+            });
+        }
+
+        /// 面板更新失败提示（UI 线程弹窗并恢复界面）。
+        private void NotifyPanelUpdateError(string message)
+        {
+            if (IsDisposed) return;
+            try
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    if (IsDisposed) return;
+                    SetBusy(false);
+                    panelUpdateRunning = false;
+                    MessageBox.Show(this, message, "面板更新失败",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }));
+            }
+            catch
+            {
+                // 窗口已销毁：静默
+            }
         }
 
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
@@ -576,6 +805,20 @@ namespace MoviePilot_V3
                         BeginInvoke(new Action(() =>
                         {
                             SetBusy(false);
+                            if (success)
+                            {
+                                // 升级成功：撤销右上角"MP有新版本"提示（下次启动重新检测）
+                                if (lblMpUpdateTip != null)
+                                {
+                                    lblMpUpdateTip.Visible = false;
+                                }
+                                LayoutUpdateTips();
+                            }
+                            else
+                            {
+                                // 升级失败：后台重新检测，仍检测到新版本时恢复右上角提示
+                                Task.Run(() => { try { CheckUpdateTips(); } catch { } });
+                            }
                             MessageBox.Show(this, message, success ? "升级成功" : "错误",
                                 MessageBoxButtons.OK, success ? MessageBoxIcon.Information : MessageBoxIcon.Error);
                         }));
@@ -613,6 +856,20 @@ namespace MoviePilot_V3
                         BeginInvoke(new Action(() =>
                         {
                             SetBusy(false);
+                            if (success)
+                            {
+                                // 修复后已重建到官方最新：撤销右上角"MP有新版本"提示
+                                if (lblMpUpdateTip != null)
+                                {
+                                    lblMpUpdateTip.Visible = false;
+                                }
+                                LayoutUpdateTips();
+                            }
+                            else
+                            {
+                                // 修复失败：后台重新检测，仍检测到新版本时恢复右上角提示
+                                Task.Run(() => { try { CheckUpdateTips(); } catch { } });
+                            }
                             MessageBox.Show(this, message, success ? "修复成功" : "错误",
                                 MessageBoxButtons.OK, success ? MessageBoxIcon.Information : MessageBoxIcon.Error);
                         }));
@@ -663,6 +920,7 @@ namespace MoviePilot_V3
         {
             // 显示前重新布局，确保按钮行位置正确
             LayoutButtonRow();
+            LayoutUpdateTips();
             Show();
             // 补发窗口隐藏期间缓存的日志：仅靠日志到达时补发的话，显示后若无新日志，
             // 隐藏期间的日志会一直躺在缓存里，日志区看似空白
@@ -750,6 +1008,12 @@ namespace MoviePilot_V3
         /// 退出应用：确认后停止服务再退出。
         private void ExitApplication()
         {
+            if (panelUpdateRunning)
+            {
+                MessageBox.Show(this, "面板更新正在进行中，请稍候完成后再退出。", "提示",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
             DialogResult result = MessageBox.Show(this, "确定要退出并停止所有服务吗？", "确认退出",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (result != DialogResult.Yes)
@@ -884,12 +1148,14 @@ namespace MoviePilot_V3
                 lastWindowState = WindowState;
             }
             LayoutButtonRow();
+            LayoutUpdateTips();
         }
 
         /// 首次显示后（尺寸已稳定）再执行一次按钮行布局。
         private void Form1_Shown(object sender, EventArgs e)
         {
             LayoutButtonRow();
+            LayoutUpdateTips();
         }
 
         /// 重新计算按钮行位置：水平居中、固定距窗体底部。

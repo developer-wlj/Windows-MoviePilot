@@ -91,6 +91,7 @@
     <Compile Include="Services\ServiceManager.cs" />
     <Compile Include="Services\UpgradeService.cs" />
     <Compile Include="Services\NginxConfigService.cs" />
+    <Compile Include="Services\PanelUpdateService.cs" />
     <Compile Include="Services\EnvironmentSetup.cs" />
     <Compile Include="Services\BundledResources.cs" />
     <Compile Include="Program.cs" />
