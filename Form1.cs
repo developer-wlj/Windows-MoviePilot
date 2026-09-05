@@ -888,7 +888,7 @@ namespace MoviePilot_V3
             });
         }
 
-        /// 后台执行代码冲突修复流程（配置对话框"代码冲突时点我"触发），结束后弹窗提示结果。
+        /// 后台执行修复运行环境流程（配置对话框"修复运行环境"触发），结束后弹窗提示结果。
         private void RunFixConflict()
         {
             SetBusy(true);
@@ -899,8 +899,8 @@ namespace MoviePilot_V3
                     UpgradeService.FixCodeConflict(Log, (success, message) =>
                     {
                         if (IsDisposed) return;
-                        if (success) Log("冲突修复成功: " + message);
-                        else LogError("冲突修复失败: " + message);
+                        if (success) Log("运行环境修复成功: " + message);
+                        else LogError("运行环境修复失败: " + message);
                         BeginInvoke(new Action(() =>
                         {
                             SetBusy(false);
@@ -925,13 +925,13 @@ namespace MoviePilot_V3
                 }
                 catch (Exception ex)
                 {
-                    LogError("冲突修复过程异常: " + ex.Message);
+                    LogError("运行环境修复过程异常: " + ex.Message);
                     if (!IsDisposed)
                     {
                         BeginInvoke(new Action(() =>
                         {
                             SetBusy(false);
-                            MessageBox.Show(this, "冲突修复过程出现异常:\n" + ex.Message, "错误",
+                            MessageBox.Show(this, "运行环境修复过程出现异常:\n" + ex.Message, "错误",
                                 MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }));
                     }
@@ -1160,7 +1160,7 @@ namespace MoviePilot_V3
                 return;
             }
 
-            // 点击"代码冲突时点我"：强制签出官方最新 v3，不再并入补丁（丢弃本地冲突的 cherry-pick）
+            // 点击"修复运行环境"：强制重建官方最新 v3 基线并重新安装依赖（丢弃本地 cherry-pick）
             if (fixConflictRequested)
             {
                 RunFixConflict();

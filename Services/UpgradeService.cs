@@ -135,6 +135,9 @@ namespace MoviePilot_V3.Services
         /// 备份后端 config\category.yaml 到面板 CONFIG_DIR（内容不同才覆盖，幂等）：
         /// 该文件是官方 git 跟踪的模板，升级重建分支会覆盖它，用户手工修改可能丢失；
         /// 首次拉取成功、检测到官方新版本、停止服务三个时机调用，保证修改不丢。
+        /// 备份文件按运行版本分开存放（V3: category.yaml / V3-T: category_t.yaml，见
+        /// AppConfig.CurrentCategoryYamlBackupFile）：两版本官方模板随版本/补丁不同，
+        /// 公用一份会在切换版本时互相覆盖，导致恢复时误用另一版本的备份。
         /// 用内容对比而非 git 状态判断（不受 tracked / untracked 与工作区状态干扰），
         /// CONFIG_DIR 无备份或与当前内容不一致时备份覆盖；源文件不存在时静默跳过。
         /// 返回是否实际执行了备份（更新流程用它判断用户是否修改过，决定是否恢复）。
@@ -142,7 +145,7 @@ namespace MoviePilot_V3.Services
         public static bool BackupCategoryYaml(Action<string> log)
         {
             string src = Path.Combine(AppConfig.CurrentMpConfDir, "category.yaml");
-            string dest = Path.Combine(AppConfig.CONFIG_DIR, "category.yaml");
+            string dest = AppConfig.CurrentCategoryYamlBackupFile;
             if (!File.Exists(src))
             {
                 return false;
@@ -168,6 +171,8 @@ namespace MoviePilot_V3.Services
         /// <summary>
         /// 官方更新成功后恢复用户对 category.yaml 的修改：仅当本次更新前实际发生过备份
         /// （检测到新版本时备份内容与 CONFIG_DIR 已有备份不同，即用户修改过）才执行；
+        /// 备份读取当前运行版本的独立备份（AppConfig.CurrentCategoryYamlBackupFile，
+        /// V3/V3-T 分开存放），不会把另一版本的备份内容恢复进当前版本；
         /// 备份与当前 MP_CONF_DIR 内容一致时跳过。
         /// 不加此条件时，用户从未修改也会用旧版官方模板回退官方新模板，必须由调用方
         /// 传入备份是否实际发生，作为“用户修改过”的可靠标记。
@@ -178,7 +183,7 @@ namespace MoviePilot_V3.Services
             {
                 return; // 用户未修改过，官方新模板应生效
             }
-            string backup = Path.Combine(AppConfig.CONFIG_DIR, "category.yaml");
+            string backup = AppConfig.CurrentCategoryYamlBackupFile;
             string dest = Path.Combine(AppConfig.CurrentMpConfDir, "category.yaml");
             if (!File.Exists(backup) || !File.Exists(dest))
             {
@@ -246,6 +251,8 @@ namespace MoviePilot_V3.Services
 
             string envPath = AppConfig.BuildEnvPath();
             string gitExe = Path.Combine(AppConfig.GIT_CMD_DIR, "git.exe");
+
+            bool isUpdate = true;
             // 本次更新前 category.yaml 备份是否实际发生（用户修改过的标记，决定更新成功后是否恢复）
             bool backedUp = false;
 
@@ -267,6 +274,7 @@ namespace MoviePilot_V3.Services
                 // 以“本地历史是否包含官方最新标签提交”判断是否已是最新
                 if (IsAncestorOfHEAD(gitExe, envPath, latestTagHash))
                 {
+                    isUpdate = false;
                     log("本地已是最新版本");
                     // 补丁分支有更新（远程最新 rebase 提交时间比 app.ini 记录新）时，先像"修复冲突"
                     // 一样强制重建官方 v3 基线（丢弃本地旧补丁残留），再重新 cherry-pick 新补丁
@@ -301,6 +309,7 @@ namespace MoviePilot_V3.Services
                         // 官方提交不可用或签出失败：放弃升级，继续使用当前版本（不视为错误）
                         log("放弃本次升级，继续使用当前版本: " + rebuildError);
                         output = "UPGRADE_SKIPPED";
+                        isUpdate = false;
                     }
                     else
                     {
@@ -351,12 +360,14 @@ namespace MoviePilot_V3.Services
                 log("代码更新成功");
                 resultMessage = "代码更新成功";
             }
+            if (isUpdate)
+            {
+                // 安装/更新 Python 依赖（requirements.txt 缺失时自动改用 uv sync 按 pyproject.toml 安装）
+                EnvironmentSetup.InstallRequirements(AppConfig.GetPythonExe(), log);
 
-            // 安装/更新 Python 依赖（requirements.txt 缺失时自动改用 uv sync 按 pyproject.toml 安装）
-            EnvironmentSetup.InstallRequirements(AppConfig.GetPythonExe(), log);
-
-            // 同步前端 / 认证 / 站点资源（按“更新时强制更新前端资源和后端认证和站点资源”配置决定是否强制覆盖）
-            SyncResourcesByConfig(log);
+                // 同步前端 / 认证 / 站点资源（按“更新时强制更新前端资源和后端认证和站点资源”配置决定是否强制覆盖）
+                SyncResourcesByConfig(log);
+            }
 
             // 重启服务
             Thread.Sleep(500);
@@ -375,30 +386,21 @@ namespace MoviePilot_V3.Services
 
 
         /// <summary>
-        /// 修复代码冲突：强制签出官方最新标签重建 v3 分支（丢弃本地所有 cherry-pick），
-        /// 不再并入 v3-rebase 补丁，直接以官方 v3 分支运行。
-        /// 用于启动时更新 / 手动升级检测到新的 rebase 补丁与本地旧补丁冲突时的恢复手段。
+        /// 修复运行环境
         /// </summary>
         /// <param name="log">日志回调（后台线程调用，调用方需自行封送）</param>
         /// <param name="onFinished">流程结束回调：参数1 是否成功，参数2 提示信息</param>
         public static void FixCodeConflict(Action<string> log, Action<bool, string> onFinished)
         {
-            log("开始修复代码冲突（强制重建官方 v3，不再并入补丁）...");
-
-            if (!EnsureGitReady(log))
-            {
-                onFinished(false, "未找到便携版 Git，请先点击\"启动服务\"完成环境准备（自动下载 Git）。");
-                return;
-            }
+            log("开始修复运行环境...");
+            EnvironmentSetup.EnsureEnvironment(log);
 
             string envPath = AppConfig.BuildEnvPath();
             string gitExe = Path.Combine(AppConfig.GIT_CMD_DIR, "git.exe");
-
-            if (!Directory.Exists(Path.Combine(AppConfig.CurrentBackendDir, ".git")))
-            {
-                onFinished(false, "后端目录不是 Git 仓库，无需修复（首次点击\"启动服务\"会自动克隆并打补丁）。");
-                return;
-            }
+            // 本次更新前 category.yaml 备份是否实际发生（用户修改过的标记，决定更新成功后是否恢复）
+            bool backedUp = false;
+            // 升级会重建分支覆盖已跟踪模板，先备份可能被用户修改过的 category.yaml
+            backedUp = BackupCategoryYaml(log);
 
             // 1. 先停止服务：代码目录内文件可能被运行中的进程占用，且修复后需重启服务
             ServiceManager.StopServices(log);
@@ -411,24 +413,25 @@ namespace MoviePilot_V3.Services
                 onFinished(false, rebuildError);
                 return;
             }
-            log("本地 cherry-pick 已全部丢弃，不再并入 v3-rebase 补丁");
+            // 官方更新成功：备份含用户修改时覆盖回，保留用户对分类的修改
+            RestoreCategoryYaml(log, backedUp);
 
             // 6. 重新安装/更新 Python 依赖（代码版本变化，依赖可能变更）
             EnvironmentSetup.InstallRequirements(AppConfig.GetPythonExe(), log);
 
             // 7. 同步前端 / 认证 / 站点资源（按“更新时强制更新前端资源和后端认证和站点资源”配置决定是否强制覆盖）
-            SyncResourcesByConfig(log);
+            SyncResourcesByConfig(log, true);
 
             // 8. 重启服务
             Thread.Sleep(500);
             ServiceManager.StartServices(log);
 
-            log("代码冲突修复完成");
-            onFinished(true, "代码冲突已修复（已强制重建官方最新 v3，未并入补丁），服务已重启。");
+            log("运行环境修复完成");
+            onFinished(true, "运行环境已修复，服务已重启。");
         }
 
         /// <summary>
-        /// 按配置同步资源（手动升级 / 代码冲突时点我流程共用，在服务重启前调用）：
+        /// 按配置同步资源（手动升级 / 修复运行环境流程共用，在服务重启前调用）：
         /// 勾选了“更新时强制更新前端资源和后端认证和站点资源”（默认勾选）时——
         /// 1. 前端资源即使版本号相同也重新下载覆盖：官方前端可能对同一版本号重新发布不同
         ///    内容的 dist.zip（版本号不变、内容更新），仅按版本号比较会漏更；本地版本高于
@@ -437,19 +440,22 @@ namespace MoviePilot_V3.Services
         ///    与站点资源（user.sites.v3.bin），下载失败自动恢复旧文件并记日志，不阻塞流程。
         /// 未勾选时维持原行为：前端按版本号比较；认证 / 站点资源由启动服务流程按缺失补下载。
         /// </summary>
-        private static void SyncResourcesByConfig(Action<string> log)
+        private static void SyncResourcesByConfig(Action<string> log, bool force = false)
         {
-            if (!AppSettings.Current.ForceUpdateResources)
+            if (!AppSettings.Current.ForceUpdateResources && !force)
             {
                 EnvironmentSetup.EnsureFrontend(log);
                 return;
             }
-            log("已勾选\"更新时强制更新前端资源和后端认证和站点资源\"，强制刷新资源...");
+            if (!force) 
+            {
+                log("已勾选\"更新时强制更新前端资源和后端认证和站点资源\"，强制刷新资源...");
+            }
             EnvironmentSetup.EnsureFrontend(log, true);
             EnvironmentSetup.RefreshSiteFiles(log);
         }
 
-        /// 强制重建官方 v3 基线（"修复代码冲突"的核心步骤，升级流程中有新补丁/补丁冲突时复用）：
+        /// 强制重建官方 v3 基线（"修复运行环境"的核心步骤，升级流程中有新补丁/补丁冲突时复用）：
         /// 1. 清理残留的 cherry-pick 进行中状态（上次冲突中止失败时遗留，会阻塞 checkout）；
         /// 2. 获取官方仓库最新标签 hash（强制重建的基准）；
         /// 3. checkout -B v3 重建分支，本地 cherry-pick 全部丢弃；
@@ -633,28 +639,6 @@ namespace MoviePilot_V3.Services
                 if (IsAncestorOfHEAD(gitExe, envPath, latestTagHash))
                 {
                     log("本地已是最新版本，无需更新");
-                    // 补丁分支有更新（远程最新 rebase 提交时间比 app.ini 记录新）时，先像"修复冲突"
-                    // 一样强制重建官方 v3 基线（丢弃本地旧补丁残留），再重新 cherry-pick 新补丁
-                    if (HasNewPatches(gitExe, envPath, log))
-                    {
-                        log("检测到补丁分支有更新，先强制重建官方 v3 分支...");
-                        string rebuildErr = ForceRebuildV3(gitExe, envPath, log);
-                        if (rebuildErr != null)
-                        {
-                            log(rebuildErr);
-                            return;
-                        }
-                        // 已是最新也补打一次补丁：保证补丁完整（幂等，已应用过的自动跳过）
-                        string patchErr = ApplyRebasePatchesWithFallback(gitExe, envPath, log);
-                        if (patchErr != null)
-                        {
-                            log(patchErr);
-                        }
-                    }
-                    // 即使代码已是最新也更新依赖/前端：手动 cherry-pick 或补丁可能引入新依赖
-                    EnvironmentSetup.InstallRequirements(AppConfig.GetPythonExe(), log);
-                    // 同步前端 / 认证 / 站点资源（按“更新时强制更新前端资源和后端认证和站点资源”配置决定是否强制覆盖）
-                    SyncResourcesByConfig(log);
                     log("启动检查更新完成");
                     return;
                 }
@@ -671,6 +655,25 @@ namespace MoviePilot_V3.Services
                     return;
                 }
                 log("v3 分支已更新到 " + latestTag);
+
+                // 4. 更新后重新打补丁：从 gitee v3-rebase 分支 cherry-pick 标题含 rebase 的提交
+                //（cherry-pick 冲突时自动强制重建官方 v3 纯净版并在日志提示）
+                string patchError = ApplyRebasePatchesWithFallback(gitExe, envPath, log);
+                if (patchError != null)
+                {
+                    log(patchError);
+                    return;
+                }
+                // 官方更新成功：备份含用户修改时覆盖回，保留用户对分类的修改
+                RestoreCategoryYaml(log, backedUp);
+
+                // 5. 重新安装/更新 Python 依赖（requirements.txt 缺失时自动改用 uv sync）
+                EnvironmentSetup.InstallRequirements(AppConfig.GetPythonExe(), log);
+
+                // 6. 同步前端 / 认证 / 站点资源（按“更新时强制更新前端资源和后端认证和站点资源”配置决定是否强制覆盖）
+                SyncResourcesByConfig(log);
+
+                log("启动检查更新完成");
             }
             else
             {
@@ -678,25 +681,6 @@ namespace MoviePilot_V3.Services
                 log("未获取到官方版本标签，请检查网络或稍后重试。");
                 return;
             }
-
-            // 4. 更新后重新打补丁：从 gitee v3-rebase 分支 cherry-pick 标题含 rebase 的提交
-            //（cherry-pick 冲突时自动强制重建官方 v3 纯净版并在日志提示）
-            string patchError = ApplyRebasePatchesWithFallback(gitExe, envPath, log);
-            if (patchError != null)
-            {
-                log(patchError);
-                return;
-            }
-            // 官方更新成功：备份含用户修改时覆盖回，保留用户对分类的修改
-            RestoreCategoryYaml(log, backedUp);
-
-            // 5. 重新安装/更新 Python 依赖（requirements.txt 缺失时自动改用 uv sync）
-            EnvironmentSetup.InstallRequirements(AppConfig.GetPythonExe(), log);
-
-            // 6. 同步前端 / 认证 / 站点资源（按“更新时强制更新前端资源和后端认证和站点资源”配置决定是否强制覆盖）
-            SyncResourcesByConfig(log);
-
-            log("启动检查更新完成");
         }
 
         /// <summary>
@@ -765,7 +749,7 @@ namespace MoviePilot_V3.Services
         /// 获取 jxxghp 官方源最新版本标签及其 commit hash（其他 Git 源仅作代码镜像，版本判断一律以官方源为准）。
         /// ls-remote 输出形如 "hash\trefs/tags/v3.0.1" 和 "hash\trefs/tags/v3.0.1^{}"（带注释标签的 peeled 提交），
         /// peeled 行优先取标签指向的 commit hash，轻量标签用标签行 hash；按语义化版本取最大者。
-        /// 返回 false 表示官方源未找到版本标签（调用方回退官方 v3 分支）。
+        /// 返回 false 表示官方源未找到版本标签。
         /// </summary>
         private static bool GetOfficialLatestTag(string gitExe, string envPath, out string latestTag, out string latestTagHash, Action<string> log, bool isPrintLog=true)
         {

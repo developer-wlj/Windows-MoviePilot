@@ -36,7 +36,7 @@ namespace MoviePilot_V3
         /// 点击"检查MP更新"时为 true（配置已保存，调用方据此执行检查更新与确认升级流程）
         public bool CheckUpdateRequested { get; private set; }
 
-        /// 点击"代码冲突时点我"时为 true（配置已保存，调用方据此触发冲突修复流程）
+        /// 点击"修复运行环境"时为 true（配置已保存，调用方据此触发运行环境修复流程）
         public bool FixConflictRequested { get; private set; }
 
         public ConfigForm()
@@ -325,10 +325,11 @@ namespace MoviePilot_V3
             };
             btnCheckUpdate.Click += BtnCheckUpdate_Click;
 
-            // 代码冲突修复：靠右对齐窗口右边框（补丁 cherry-pick 与本地旧补丁冲突时：强制重建官方最新 v3，不再并入补丁）
+            // 修复运行环境：靠右对齐窗口右边框（环境异常 / 补丁 cherry-pick 冲突时：
+            // 强制重建官方最新 v3 基线并重新安装依赖、同步资源、重启服务）
             btnFixConflict = new Button
             {
-                Text = "代码冲突时点我",
+                Text = "修复运行环境",
                 BackColor = Color.FromArgb(60, 60, 60),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
@@ -336,17 +337,6 @@ namespace MoviePilot_V3
                 Size = new Size(160, 38)
             };
             btnFixConflict.Click += BtnFixConflict_Click;
-
-            // 冲突修复说明：操作按钮上方，文字右对齐窗口右边框
-            Label lblFixHint = new Label
-            {
-                Text = "源码运行，不再打入补丁",
-                AutoSize = false,
-                TextAlign = ContentAlignment.MiddleRight,
-                ForeColor = labelGray,
-                Location = new Point(20, 494),
-                Size = new Size(ClientSize.Width - 40, 20)
-            };
 
             // 确定 / 取消：最底部水平居中
             btnOK = new Button
@@ -399,7 +389,6 @@ namespace MoviePilot_V3
             Controls.Add(chkTrayStart);
             Controls.Add(btnCheckUpdate);
             Controls.Add(btnFixConflict);
-            Controls.Add(lblFixHint);
             Controls.Add(btnOK);
             Controls.Add(btnCancel);
         }
@@ -517,7 +506,7 @@ namespace MoviePilot_V3
             }
         }
 
-        /// 修复代码冲突：先保存当前配置，再标记冲突修复请求（对话框以 OK 关闭）。
+        /// 修复运行环境：先保存当前配置，再标记修复请求（对话框以 OK 关闭）。
         private void BtnFixConflict_Click(object sender, EventArgs e)
         {
             BtnOK_Click(sender, e);

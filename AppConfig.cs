@@ -70,6 +70,14 @@ namespace MoviePilot_V3
         public static string CurrentMpLogDir { get { return IsTVersion ? MP_LOG_DIR_T : MP_LOG_DIR; } }
         public static string CurrentMpTempDir { get { return IsTVersion ? MP_TRMP_DIR_T : MP_TRMP_DIR; } }
         public static string CurrentDownloadFlagFile { get { return IsTVersion ? DOWNLOAD_FLAG_FILE_T : DOWNLOAD_FLAG_FILE; } }
+        // 面板 CONFIG_DIR 下当前运行版本的 category.yaml 备份文件：两个版本后端目录的官方模板
+        // 内容随版本/补丁不同，备份若公用一个文件会互相覆盖（升级恢复时误把另一版本内容写回
+        // 当前版本），故按版本分开——V3 用 category.yaml，V3-T 用 category_t.yaml
+        // （仿 app.ini 双版本键名 last_rebase_patch_time_v3/_t 的分开记录惯例）
+        public static string CurrentCategoryYamlBackupFile
+        {
+            get { return Path.Combine(CONFIG_DIR, IsTVersion ? "category_t.yaml" : "category.yaml"); }
+        }
 
         /// 是否存在认证 / 站点资源强制更新标记（download.flag，按当前运行版本目录）。
         public static bool DownloadFlagExists

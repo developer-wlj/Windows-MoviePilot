@@ -41,7 +41,7 @@ namespace MoviePilot_V3
         public string RunVersion { get; set; } = DefaultRunVersion;
         // 启动时驻留系统托盘（不显示主窗口），默认关闭
         public bool StartMinimizedToTray { get; set; } = DefaultStartMinimizedToTray;
-        // 更新时（手动升级 / 代码冲突时点我）强制更新前端资源与后端认证 / 站点资源（默认开启）：
+        // 更新时（手动升级 / 修复运行环境）强制更新前端资源与后端认证 / 站点资源（默认开启）：
         // 前端 dist.zip 可能同一版本号被官方重新发布（版本号不变、内容变化），仅按版本号比较会漏更；
         // 认证资源（sites.cp314(-t)-win_amd64.pyd）与站点资源（user.sites.v3.bin）也一并强制重新下载覆盖
         public bool ForceUpdateResources { get; set; } = DefaultForceUpdateResources;
