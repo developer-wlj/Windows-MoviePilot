@@ -246,7 +246,7 @@
             // 
             // lblMpUpdateTip
             // 
-            // MoviePilot 后端有新版本标签：与面板提示并排（位于其左），浅绿色，点击弹窗确认后走"立即升级版本"流程
+            // MoviePilot 后端有新版本标签：与面板提示并排（位于其左），浅绿色，点击弹窗确认后走与"检查MP更新"相同的升级流程
             this.lblMpUpdateTip.AutoSize = true;
             this.lblMpUpdateTip.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
             this.lblMpUpdateTip.Cursor = System.Windows.Forms.Cursors.Hand;

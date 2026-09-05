@@ -377,7 +377,7 @@ namespace MoviePilot_V3.Services
         /// <summary>
         /// 修复代码冲突：强制签出官方最新标签重建 v3 分支（丢弃本地所有 cherry-pick），
         /// 不再并入 v3-rebase 补丁，直接以官方 v3 分支运行。
-        /// 用于启动时更新 / 立即升级检测到新的 rebase 补丁与本地旧补丁冲突时的恢复手段。
+        /// 用于启动时更新 / 手动升级检测到新的 rebase 补丁与本地旧补丁冲突时的恢复手段。
         /// </summary>
         /// <param name="log">日志回调（后台线程调用，调用方需自行封送）</param>
         /// <param name="onFinished">流程结束回调：参数1 是否成功，参数2 提示信息</param>
@@ -428,7 +428,7 @@ namespace MoviePilot_V3.Services
         }
 
         /// <summary>
-        /// 按配置同步资源（立即升级版本 / 代码冲突时点我流程共用，在服务重启前调用）：
+        /// 按配置同步资源（手动升级 / 代码冲突时点我流程共用，在服务重启前调用）：
         /// 勾选了“更新时强制更新前端资源和后端认证和站点资源”（默认勾选）时——
         /// 1. 前端资源即使版本号相同也重新下载覆盖：官方前端可能对同一版本号重新发布不同
         ///    内容的 dist.zip（版本号不变、内容更新），仅按版本号比较会漏更；本地版本高于
@@ -701,13 +701,27 @@ namespace MoviePilot_V3.Services
 
         /// <summary>
         /// 检测当前运行版本的 MoviePilot 后端是否有官方新版本（仅检测不更新，供启动后的
-        /// 右上角“MP有新版本”提示使用）：与"立即升级版本"同一判断逻辑——官方仓库
-        /// jxxghp/MoviePilot 最新标签指向的 commit hash 未包含在本地 v3 分支历史中即视为
-        /// 有新版本（本地打过 cherry-pick 补丁后 hash 不同，必须以 merge-base 包含判断）。
-        /// Git 缺失 / 后端目录不是 Git 仓库 / 官方源不可用时返回 false（不提示）。
+        /// 右上角"MP有新版本"提示使用）：与"检查MP更新"按钮同一逻辑，直接复用
+        /// CheckNewMpVersion（仅取是否更新，忽略失败原因与版本详情）。
+        /// Git 缺失 / 后端目录不是 Git 仓库 / 官方源不可用 / 已是最新时均返回 false
+        /// （静默不打扰，是否弹窗提示由调用方决定）。
         /// </summary>
         /// <param name="log">日志回调（后台线程调用，调用方需自行封送）</param>
         public static bool HasNewMpVersion(Action<string> log)
+        {
+            return CheckNewMpVersion(log);
+        }
+
+        /// <summary>
+        /// 检查当前选择运行版本的本地代码相对官方（jxxghp）最新标签是否落后（供"检查MP更新"按钮使用）：
+        /// 与右上角"MP有新版本"提示同一判断逻辑——官方最新标签指向的 commit hash 未包含在本地
+        /// v3 分支历史中即视为有新版本（本地打过 cherry-pick 补丁后 hash 不同，必须以
+        /// merge-base 包含判断）。仅检测不更新，确认升级仍走 Upgrade（内部自行停止服务、
+        /// 重建分支、装依赖并重启服务）。
+        /// </summary>
+        /// <param name="log">日志回调（后台线程调用，调用方需自行封送）</param>
+        /// <returns>true = 检测到官方新版本标签（本地未包含）；false = 无更新或检测失败</returns>
+        public static bool CheckNewMpVersion(Action<string> log)
         {
             if (!File.Exists(Path.Combine(AppConfig.GIT_CMD_DIR, "git.exe")))
             {
@@ -729,7 +743,7 @@ namespace MoviePilot_V3.Services
             {
                 return false; // 官方最新标签已在本地历史中：已是最新
             }
-            log("检测到 MoviePilot 新版本标签: " + latestTag + " (" + ShortHash(latestTagHash) + ")，本地未包含，可点击右上角的\"MP有新版本\"进行更新");
+            log("检测到 MoviePilot 新版本标签: " + latestTag + " (" + ShortHash(latestTagHash) + ")，本地未包含。");
             return true;
         }
 

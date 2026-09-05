@@ -146,7 +146,7 @@ namespace MoviePilot_V3.Services
             string url = FrontendReleaseBase + frontendVersion + "/dist.zip";
             if (!DownloadFile(url, archive, log, true))
             {
-                log("前端资源下载失败（可稍后手动触发立即升级版本重试）");
+                log("前端资源下载失败（可稍后通过\"检查MP更新\"触发升级重试）");
                 return;
             }
 
@@ -198,13 +198,11 @@ namespace MoviePilot_V3.Services
             if (proxyUrl != null)
             {
                 RunProcess(gitExe, "config --global http.proxy \"" + proxyUrl + "\"", AppConfig.GIT_DIR, null);
-                log("已设置 git 全局代理: " + proxyUrl);
             }
             else
             {
                 // 未设置过时 unset 返回非零，忽略
                 RunProcess(gitExe, "config --global --unset-all http.proxy", AppConfig.GIT_DIR, null);
-                log("已清空 git 全局代理");
             }
         }
 

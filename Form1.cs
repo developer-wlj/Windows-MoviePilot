@@ -466,7 +466,7 @@ namespace MoviePilot_V3
             RunPanelSelfUpdate(tag);
         }
 
-        /// 点击"MP有新版本"：确认后走与配置窗口"立即升级版本"相同的升级流程
+        /// 点击"MP有新版本"：确认后走与配置窗口"检查MP更新"确认后相同的升级流程
         /// （UpgradeService.Upgrade：内部自行停止服务、更新代码、装依赖并重启服务）。
         private void LblMpUpdateTip_Click(object sender, EventArgs e)
         {
@@ -789,7 +789,55 @@ namespace MoviePilot_V3
             if (miRestart != null) miRestart.Enabled = !busy;
         }
 
-        /// 后台执行升级流程（配置对话框"立即升级版本"触发），结束后弹窗提示结果。
+        /// 后台执行"检查MP更新"（配置对话框触发）：git 检查当前运行版本是否有官方新标签。
+        /// 无更新 / 检查失败（Git 缺失、代码未克隆、网络异常）时弹窗提示结果；
+        /// 检测到新版本时弹窗询问用户，确认后复用 RunUpgrade 升级流程（停止服务 + 更新 + 重启）。
+        private void RunCheckMpUpdate()
+        {
+            SetBusy(true);
+            Task.Run(() =>
+            {
+                string error = null;
+                bool hasNew;
+                try
+                {
+                    hasNew = UpgradeService.CheckNewMpVersion(Log);
+                }
+                catch (Exception ex)
+                {
+                    hasNew = false;
+                    error = "检查更新过程出现异常: " + ex.Message;
+                }
+                if (IsDisposed) return;
+                BeginInvoke(new Action(() =>
+                {
+                    if (IsDisposed) return;
+                    SetBusy(false);
+                    if (!hasNew)
+                    {
+                        // 检查失败给出原因；确认无更新时提示已是最新
+                        MessageBox.Show(this, error != null
+                            ? "检查失败: " + error + "\n\n当前运行的 " + AppSettings.Current.RunVersion + " 保持不变。"
+                            : "当前运行的 " + AppSettings.Current.RunVersion + " 已是最新版本，无需更新。",
+                            "检查MP更新", MessageBoxButtons.OK,
+                            error != null ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+                        return;
+                    }
+                    // 检测到官方新版本：询问用户确认后复用升级流程
+                    if (MessageBox.Show(this,
+                        "检测到运行的 " + AppSettings.Current.RunVersion + " 有官方新版本。\n" +
+                        "是否立即升级？\n\n升级将停止并重启 MoviePilot 服务（含依赖安装与资源同步），耗时可能较长。",
+                        "检查MP更新", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                    {
+                        Log("已取消升级，保持当前版本");
+                        return;
+                    }
+                    RunUpgrade();
+                }));
+            });
+        }
+
+        /// 后台执行升级流程（"MP有新版本"提示 / 配置对话框"检查MP更新"确认后触发），结束后弹窗提示结果。
         private void RunUpgrade()
         {
             SetBusy(true);
@@ -1047,7 +1095,7 @@ namespace MoviePilot_V3
         private void BtnRestart_Click(object sender, EventArgs e) => RestartServices();
 
         /// 重启服务：先确保运行环境就绪（缺失的便携版自动下载），再停止服务，最后启动服务。
-        /// 纯重启，不做版本检查/升级（升级只走配置窗口"立即升级版本"与"启动时更新版本"配置项）。
+        /// 纯重启，不做版本检查/升级（升级只走配置窗口"检查MP更新"确认后的升级流程与"启动时更新版本"配置项）。
         /// 主窗口按钮与托盘右键菜单共用入口，统一在此做二次确认。
         private void RestartServices()
         {
@@ -1066,14 +1114,14 @@ namespace MoviePilot_V3
 
         private void BtnSite_Click(object sender, EventArgs e) => OpenSite();
 
-        /// 打开配置对话框；"立即升级版本"触发升级，端口变化时同步 nginx 配置并重载。
+        /// 打开配置对话框；"检查MP更新"触发检查与确认升级，端口变化时同步 nginx 配置并重载。
         private void BtnConfig_Click(object sender, EventArgs e)
         {
             int oldNginx = AppSettings.Current.NginxPort;
             int oldBackend = AppSettings.Current.BackendPort;
             string oldRunVersion = AppSettings.Current.RunVersion;
 
-            bool upgradeRequested;
+            bool checkUpdateRequested;
             bool fixConflictRequested;
             using (ConfigForm f = new ConfigForm())
             {
@@ -1084,7 +1132,7 @@ namespace MoviePilot_V3
                     {
                         return;
                     }
-                    upgradeRequested = f.UpgradeRequested;
+                    checkUpdateRequested = f.CheckUpdateRequested;
                     fixConflictRequested = f.FixConflictRequested;
                 }
                 finally
@@ -1092,8 +1140,6 @@ namespace MoviePilot_V3
                     configForm = null;
                 }
             }
-
-            Log("配置已保存: " + AppSettings.ConfigPath);
 
             // 阻止休眠开关变更立即生效（勾选阻止 / 取消恢复），无需重启面板
             ApplySleepPrevention();
@@ -1106,10 +1152,11 @@ namespace MoviePilot_V3
 
             statusTimer.Interval = Math.Max(3000, AppSettings.Current.StatusMonitorSec * 1000);
 
-            // 点击"立即升级版本"：配置已在对话框内保存，直接执行升级（官方标签更新 + 依赖 + 重启服务）
-            if (upgradeRequested)
+            // 点击"检查MP更新"：配置已在对话框内保存，先按刚保存的运行版本检查官方新标签，
+            // 有更新时弹窗询问用户，确认后走升级流程（官方标签更新 + 依赖 + 重启服务）
+            if (checkUpdateRequested)
             {
-                RunUpgrade();
+                RunCheckMpUpdate();
                 return;
             }
 

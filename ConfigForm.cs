@@ -29,12 +29,12 @@ namespace MoviePilot_V3
         private CheckBox chkTrayStart;
         private Button btnOK;
         private Button btnCancel;
-        private Button btnUpgradeNow;
+        private Button btnCheckUpdate;
         private Button btnFixConflict;
         private Icon windowIcon; // 窗口图标：Form.Icon 不会自动释放，Dispose 时显式释放（防 GDI 句柄泄漏）
 
-        /// 点击"立即升级版本"时为 true（配置已保存，调用方据此触发升级流程）
-        public bool UpgradeRequested { get; private set; }
+        /// 点击"检查MP更新"时为 true（配置已保存，调用方据此执行检查更新与确认升级流程）
+        public bool CheckUpdateRequested { get; private set; }
 
         /// 点击"代码冲突时点我"时为 true（配置已保存，调用方据此触发冲突修复流程）
         public bool FixConflictRequested { get; private set; }
@@ -286,7 +286,7 @@ namespace MoviePilot_V3
 
             // 更新时强制更新前端资源与后端认证 / 站点资源（默认勾选）：
             // 官方前端可能对同一版本号重新发布不同内容的 dist.zip（版本号不变、内容更新），
-            // 仅按版本号比较会漏更；勾选后立即升级 / 源码运行时即使版本相同也重新下载覆盖
+            // 仅按版本号比较会漏更；勾选后手动升级 / 源码运行时即使版本相同也重新下载覆盖
             chkForceUpdate = new CheckBox
             {
                 Text = "更新时强制更新前端资源和后端认证和站点资源",
@@ -313,17 +313,17 @@ namespace MoviePilot_V3
                 Location = new Point(20, 490)
             };
 
-            // 立即升级版本（保存配置后触发 git pull 升级流程）
-            btnUpgradeNow = new Button
+            // 检查MP更新（保存配置后触发 git 检查，发现新版本时询问确认再走升级流程）
+            btnCheckUpdate = new Button
             {
-                Text = "立即升级版本",
+                Text = "检查MP更新",
                 BackColor = Color.FromArgb(60, 60, 60),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
                 Location = new Point(20, 524),
                 Size = new Size(120, 38)
             };
-            btnUpgradeNow.Click += BtnUpgradeNow_Click;
+            btnCheckUpdate.Click += BtnCheckUpdate_Click;
 
             // 代码冲突修复：靠右对齐窗口右边框（补丁 cherry-pick 与本地旧补丁冲突时：强制重建官方最新 v3，不再并入补丁）
             btnFixConflict = new Button
@@ -397,7 +397,7 @@ namespace MoviePilot_V3
             Controls.Add(chkForceUpdate);
             Controls.Add(chkAutoStart);
             Controls.Add(chkTrayStart);
-            Controls.Add(btnUpgradeNow);
+            Controls.Add(btnCheckUpdate);
             Controls.Add(btnFixConflict);
             Controls.Add(lblFixHint);
             Controls.Add(btnOK);
@@ -506,13 +506,14 @@ namespace MoviePilot_V3
             return true;
         }
 
-        /// 立即升级：先保存当前配置，再标记升级请求（对话框以 OK 关闭）。
-        private void BtnUpgradeNow_Click(object sender, EventArgs e)
+        /// 检查MP更新：先保存当前配置，再标记检查请求（对话框以 OK 关闭，
+        /// 调用方基于刚保存的运行版本执行 git 检查，检测到新版本时询问确认后升级）。
+        private void BtnCheckUpdate_Click(object sender, EventArgs e)
         {
             BtnOK_Click(sender, e);
             if (DialogResult == DialogResult.OK)
             {
-                UpgradeRequested = true;
+                CheckUpdateRequested = true;
             }
         }
 

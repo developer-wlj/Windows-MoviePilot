@@ -155,7 +155,7 @@ namespace MoviePilot_V3.Services
                 };
                 psi.EnvironmentVariables["PATH"] = AppConfig.BuildEnvPath();
                 Process.Start(psi);
-                log("已重载 Nginx，新端口生效");
+                log("已重载 Nginx，新端口生效。修改后端端口，需重启服务");
             }
             catch (Exception ex)
             {
