@@ -111,11 +111,10 @@ namespace MoviePilot_V3.Services
         private static List<int> GetBackendPythonPids()
         {
             List<int> pids = new List<int>();
-            string outFile = Path.Combine(Path.GetTempPath(), "mp_backend_pids_" + Guid.NewGuid().ToString("N") + ".txt");
             try
             {
                 // PowerShell 脚本：抑制首次加载模块的进度输出；按命令行特征匹配本面板启动的后端，
-                // 结果写入临时文件（不经过管道，避免 .NET Framework 管道句柄泄漏）
+                // 结果直接写标准输出（数字 PID，一行一个），由本进程管道捕获——无需经临时文件中转
                 // 匹配当前运行版本的 python（venv launcher 最终
                 // 拉起的进程是基础解释器，命令行不含 venv 路径；
                 // 不匹配系统其他 python 进程）
@@ -123,29 +122,42 @@ namespace MoviePilot_V3.Services
                 // 序列，导致编译失败或误匹配；先转义为 \\（正则中匹配字面 \）再拼接
                 string binMatch = AppConfig.BIN_DIR.Replace("\\", "\\\\");
                 string script = "$ProgressPreference = 'SilentlyContinue'" + Environment.NewLine +
-                    "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { ($_.CommandLine -match '" + binMatch + "') -and $_.CommandLine -match '\\\\app\\\\main\\.py' } | ForEach-Object { $_.ProcessId } | Out-File -FilePath '" + outFile + "' -Encoding ascii";
+                    "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { ($_.CommandLine -match '" + binMatch + "') -and $_.CommandLine -match '\\\\app\\\\main\\.py' } | ForEach-Object { $_.ProcessId }";
                 string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
                 string psExe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),
                     "WindowsPowerShell", "v1.0", "powershell.exe");
+                ProcessStartInfo psi = new ProcessStartInfo
+                {
+                    FileName = psExe,
+                    Arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand " + encoded,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    // 输出为纯数字 PID，任意编码解码都不会乱码；显式按 ASCII 解码即可
+                    StandardOutputEncoding = Encoding.ASCII,
+                    StandardErrorEncoding = Encoding.ASCII
+                };
                 using (Process p = new Process())
                 {
-                    p.StartInfo = new ProcessStartInfo
-                    {
-                        FileName = psExe,
-                        Arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand " + encoded,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
+                    p.StartInfo = psi;
+                    // 事件式异步读取 stdout / stderr：避免同步 ReadToEnd 与 WaitForExit 相互等待
+                    // 造成管道缓冲死锁（与项目其他子进程调用一致的防死锁写法），
+                    // 也不经临时文件中转（原实现写系统 temp 后秒删，本方案直接拿到输出）
+                    StringBuilder sb = new StringBuilder();
+                    p.OutputDataReceived += (s, e) => { if (e.Data != null) sb.AppendLine(e.Data); };
+                    p.ErrorDataReceived += (s, e) => { }; // 错误流一并重定向读取（防缓冲阻塞），内容不需要
                     p.Start();
+                    p.BeginOutputReadLine();
+                    p.BeginErrorReadLine();
                     if (!p.WaitForExit(8000))
                     {
-                        // 超时强制结束（子进程退出后句柄随之回收）
+                        // 超时强制结束（子进程退出后管道关闭，下方 WaitForExit 必然完成）
                         try { p.Kill(); } catch { }
                     }
-                }
-                if (File.Exists(outFile))
-                {
-                    foreach (string line in File.ReadAllText(outFile).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                    // 无参 WaitForExit 等待异步管道读取结束，随后解析 pids
+                    p.WaitForExit();
+                    foreach (string line in sb.ToString().Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
                     {
                         int pid;
                         if (int.TryParse(line.Trim(), out pid) && pid > 0)
@@ -159,10 +171,6 @@ namespace MoviePilot_V3.Services
             {
                 // 查询失败（如 PowerShell 不可用）时按无进程处理，调用方静默跳过
                 Debug.WriteLine("查询 Python 后端进程失败: " + ex.Message);
-            }
-            finally
-            {
-                try { if (File.Exists(outFile)) File.Delete(outFile); } catch { }
             }
             return pids;
         }
