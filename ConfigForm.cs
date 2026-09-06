@@ -96,8 +96,9 @@ namespace MoviePilot_V3
             {
                 Icon = windowIcon;
             }
-            // 高度 620：运行版本 + 四行数值配置 + GitHub Token + 代理（类型/地址/端口）+ 六个开关 + 操作按钮行 + 确定/取消行
-            ClientSize = new Size(480, 620);
+            // 尺寸 580x660：运行版本 + 四行数值配置 + GitHub Token + 代理（类型/地址/端口，端口独立成行）+
+            // 六个开关 + 操作按钮行 + 确定/取消行；输入控件列从 x=280 起（最宽输入右边界 510，右侧留 70px）
+            ClientSize = new Size(580, 660);
             BackColor = bg;
             ForeColor = fg;
             Font = uiFont;
@@ -113,7 +114,7 @@ namespace MoviePilot_V3
             };
             cmbRunVersion = new ComboBox
             {
-                Location = new Point(230, 16),
+                Location = new Point(280, 16),
                 Width = 200,
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
@@ -129,7 +130,7 @@ namespace MoviePilot_V3
             };
             numTimeout = new NumericUpDown
             {
-                Location = new Point(230, 60),
+                Location = new Point(280, 60),
                 Width = 120,
                 Minimum = 1,
                 Maximum = 600,
@@ -146,7 +147,7 @@ namespace MoviePilot_V3
             };
             numNginxPort = new NumericUpDown
             {
-                Location = new Point(230, 100),
+                Location = new Point(280, 100),
                 Width = 120,
                 Minimum = 1,
                 Maximum = 65535,
@@ -163,7 +164,7 @@ namespace MoviePilot_V3
             };
             numBackendPort = new NumericUpDown
             {
-                Location = new Point(230, 140),
+                Location = new Point(280, 140),
                 Width = 120,
                 Minimum = 1,
                 Maximum = 65535,
@@ -180,7 +181,7 @@ namespace MoviePilot_V3
             };
             numMonitorSec = new NumericUpDown
             {
-                Location = new Point(230, 180),
+                Location = new Point(280, 180),
                 Width = 120,
                 // 最小 3 秒：状态查询实时拉取 PowerShell，低于 3 秒会使查询开销占比过高
                 Minimum = 3,
@@ -195,7 +196,7 @@ namespace MoviePilot_V3
                 Text = "阻止Windows休眠和睡眠",
                 AutoSize = true,
                 ForeColor = fg,
-                Location = new Point(20, 340)
+                Location = new Point(20, 380)
             };
 
             // 打印 Debug 日志：勾选后 uv / pip / curl / git 等子进程命令输出以 DEBUG 级别
@@ -205,7 +206,7 @@ namespace MoviePilot_V3
                 Text = "打印Debug日志（显示 uv / pip / curl / git 命令输出）",
                 AutoSize = true,
                 ForeColor = fg,
-                Location = new Point(20, 370)
+                Location = new Point(20, 410)
             };
 
             // GitHub Token（下载 GitHub 资源文件时携带 Authorization 请求头）
@@ -218,8 +219,8 @@ namespace MoviePilot_V3
             };
             txtToken = new TextBox
             {
-                Location = new Point(230, 220),
-                Width = 230,
+                Location = new Point(280, 220),
+                Width = 290,
                 BackColor = Color.White,
                 ForeColor = Color.Black,
                 BorderStyle = BorderStyle.FixedSingle
@@ -235,8 +236,8 @@ namespace MoviePilot_V3
             };
             cmbProxyType = new ComboBox
             {
-                Location = new Point(230, 260),
-                Width = 90,
+                Location = new Point(280, 260),
+                Width = 100,
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
             cmbProxyType.Items.AddRange(new object[] { "关闭", "http", "socks5" });
@@ -251,25 +252,25 @@ namespace MoviePilot_V3
             };
             txtProxyHost = new TextBox
             {
-                Location = new Point(230, 300),
-                Width = 160,
+                Location = new Point(280, 300),
+                Width = 230,
                 BackColor = Color.White,
                 ForeColor = Color.Black,
                 BorderStyle = BorderStyle.FixedSingle
             };
 
-            // 代理端口
+            // 代理端口（独立一行，输入框与上方数值行对齐）
             Label lblProxyPort = new Label
             {
                 Text = "代理端口",
                 AutoSize = true,
                 ForeColor = labelGray,
-                Location = new Point(330, 304)
+                Location = new Point(20, 344)
             };
             numProxyPort = new NumericUpDown
             {
-                Location = new Point(410, 300),
-                Width = 50,
+                Location = new Point(280, 340),
+                Width = 120,
                 Minimum = 0,
                 Maximum = 65535,
                 TextAlign = HorizontalAlignment.Right
@@ -281,7 +282,7 @@ namespace MoviePilot_V3
                 Text = "启动时更新版本（对比官方最新标签，重建 v3 分支）",
                 AutoSize = true,
                 ForeColor = fg,
-                Location = new Point(20, 400)
+                Location = new Point(20, 440)
             };
 
             // 更新时强制更新前端资源与后端认证 / 站点资源（默认勾选）：
@@ -292,7 +293,7 @@ namespace MoviePilot_V3
                 Text = "更新时强制更新前端资源和后端认证和站点资源",
                 AutoSize = true,
                 ForeColor = fg,
-                Location = new Point(20, 430)
+                Location = new Point(20, 470)
             };
 
             // 启动时自动启动 Nginx 和 Python
@@ -301,7 +302,7 @@ namespace MoviePilot_V3
                 Text = "打开应用自动启动 Nginx 和 Python",
                 AutoSize = true,
                 ForeColor = fg,
-                Location = new Point(20, 460)
+                Location = new Point(20, 500)
             };
 
             // 启动时驻留系统托盘（不显示主窗口）
@@ -310,7 +311,7 @@ namespace MoviePilot_V3
                 Text = "启动时驻留托盘（不显示主窗口）",
                 AutoSize = true,
                 ForeColor = fg,
-                Location = new Point(20, 490)
+                Location = new Point(20, 530)
             };
 
             // 检查MP更新（保存配置后触发 git 检查，发现新版本时询问确认再走升级流程）
@@ -320,7 +321,7 @@ namespace MoviePilot_V3
                 BackColor = Color.FromArgb(60, 60, 60),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
-                Location = new Point(20, 524),
+                Location = new Point(20, 564),
                 Size = new Size(120, 38)
             };
             btnCheckUpdate.Click += BtnCheckUpdate_Click;
@@ -333,12 +334,14 @@ namespace MoviePilot_V3
                 BackColor = Color.FromArgb(60, 60, 60),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
-                Location = new Point(ClientSize.Width - 160 - 20, 524),
+                Location = new Point(ClientSize.Width - 160 - 20, 564),
                 Size = new Size(160, 38)
             };
             btnFixConflict.Click += BtnFixConflict_Click;
 
-            // 确定 / 取消：最底部水平居中
+            // 确定 / 取消：最底部水平居中（按窗口实际宽度动态计算，窗口加宽后仍保持居中）
+            int btnGroupWidth = 215; // 整组宽度：确定 100 + 间距 15 + 取消 100
+            int btnOKLeft = (ClientSize.Width - btnGroupWidth) / 2;
             btnOK = new Button
             {
                 Text = "确定",
@@ -346,7 +349,7 @@ namespace MoviePilot_V3
                 BackColor = Color.FromArgb(60, 60, 60),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
-                Location = new Point(132, 570),
+                Location = new Point(btnOKLeft, 610),
                 Size = new Size(100, 38)
             };
             btnOK.Click += BtnOK_Click;
@@ -358,7 +361,7 @@ namespace MoviePilot_V3
                 BackColor = Color.FromArgb(60, 60, 60),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
-                Location = new Point(247, 570),
+                Location = new Point(btnOKLeft + 115, 610), // 115 = 100 + 15 间距
                 Size = new Size(100, 38)
             };
             CancelButton = btnCancel;

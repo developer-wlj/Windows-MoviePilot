@@ -291,8 +291,13 @@ namespace MoviePilot_V3
                 if (!IsDisposed && !IsHandleCreated)
                 {
                     CreateHandle();
+                    // 句柄创建后补齐控件创建流程（初始 AutoScale 缩放 + 布局，窗口保持隐藏）：
+                    // 若此处只建句柄，缩放会在真正 Show 时才执行（创建流程在显示链路内触发），
+                    // 窗口显示瞬间发生尺寸变化，Windows 11 24H2 上表现为边框闪烁与跳动
+                    CreateControl();
                 }
-                // 手动触发 Form1_Load 完成面板初始化（此时句柄已创建，布局尺寸正确）
+                // 手动触发 Form1_Load 完成面板初始化（此时句柄已创建，布局尺寸正确）；
+                // 若 CreateControl 已触发过 Load，此调用被 loadDone 守卫跳过，初始化不会重复
                 OnLoad(EventArgs.Empty);
                 return; // 保持隐藏状态
             }
@@ -307,6 +312,16 @@ namespace MoviePilot_V3
                 return;
             }
             loadDone = true;
+
+            // 首次显示前按最终尺寸定位到屏幕中心（StartPosition=Manual，与 ConfigForm 的 OnLoad 居中同一模式）：
+            // CenterScreen 的默认时序是句柄创建时先按默认位置 (0,0) 创建窗口、再居中移动，
+            // 合成层（WS_EX_COMPOSITED）窗口首帧在 Windows 11 24H2 上表现为左上角黑色细框闪现后瞬移到中心；
+            // Load 在窗口首次可见前执行（SetVisibleCore(true) 触发 OnLoad 后才置可见状态），此处定位不可见，
+            // 窗口直接出现在最终位置。托盘驻留模式下 Load 在启动时隐藏执行，之后 Show 同样不再移动
+            Rectangle wa = Screen.FromControl(this).WorkingArea;
+            Location = new Point(
+                wa.X + Math.Max(0, (wa.Width - Width) / 2),
+                wa.Y + Math.Max(0, (wa.Height - Height) / 2));
 
             // 监听命名管道：命令行模式（MoviePilot-V3 -c xxx）的日志实时显示到运行日志区
             StartLogPipeServer();
