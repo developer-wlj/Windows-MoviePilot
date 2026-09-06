@@ -62,18 +62,9 @@ RUSTUP_UPDATE_ROOT=https://rsproxy.cn/rustup
 
 > 加入 PATH 的目的是让 Rust 编译 psycopg 时能找到 **libpq**（`pg_config`），是编译通过的必要条件。
 
-## PostgreSQL 与 MP 的实际使用说明
-> 源码运行需要以下操作, v3-rebase补丁已实现自动加载DLL
+## 步骤 5：重新启动MoviePilot-V3.exe
 
-**面板实际运行时，MP 无法直接切换到 PostgreSQL 数据库**：后端 Python 进程加载 DLL 时不走系统环境变量 `PATH`，因此即使把 `bin` 加入了 PATH，运行期加载 `libpq.dll` 仍会失败。
-
-如需在 freethreaded 版中使用 PostgreSQL，需在 `server\MoviePilot-V3-T\app\main.py` 顶部手动注册 DLL 搜索目录（**必须在 `import psycopg` 之前执行**，路径换成你实际的 PostgreSQL 路径）：
-
-```python
-import os
-# 必须在 import psycopg 之前执行 换成你实际的postgresql路径
-os.add_dll_directory(r"D:\postgresql-17.11-1-windows-x64-binaries\pgsql\bin")
-```
+步骤1-4执行完后，请重新启动MoviePilot-V3.exe 使程序重新加载环境配置
 
 ## 重要声明
 
