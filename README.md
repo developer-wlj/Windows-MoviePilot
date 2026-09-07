@@ -51,7 +51,7 @@ MoviePilot-V3\
    - 下载站点资源文件（sites.pyd / user.sites.v3.bin）
    - 克隆后端代码并自动合入 v3-rebase 补丁
 3. 等待后端初始化完成后（约 30~60 秒），浏览器访问：`http://127.0.0.1:3000`
-4. 默认账号 `admin`，首次密码随机生成，请查看后端日志（`server\config\logs\moviepilot.log`）
+4. 首次访问,需自行在WEB页面上设置用户名和密码
 
 ![面板主界面](img/main-window.png)
 

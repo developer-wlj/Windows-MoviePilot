@@ -322,7 +322,7 @@ namespace MoviePilot_V3
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = fg,
                 Location = new Point(20, 564),
-                Size = new Size(120, 38)
+                Size = new Size(140, 38)
             };
             btnCheckUpdate.Click += BtnCheckUpdate_Click;
 

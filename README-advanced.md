@@ -210,11 +210,15 @@ MoviePilot-V3.exe -c update   # 升级版本（与配置窗口「立即升级版
 - **端口被占用**：修改 `nginx_port` / `backend_port` 为未占用端口（保存后 nginx 自动重载）
 - **排查后端错误（前台运行）**：点击托盘图标右键 →「打开面板目录」，在目录空白处按住 Shift + 鼠标右键 →「在此处打开 PowerShell / 在此处打开 CMD」，输入以下命令，前台运行后端查看报错：
 
+  **标准版 `MoviePilot-V3`**
   ```cmd
   .\runtime\venv\Scripts\python.exe .\server\MoviePilot-V3\app\main.py
   ```
 
-  以标准版 `MoviePilot-V3` 为例（虚拟环境 `runtime\venv`）；freethreaded 版对应为 `runtime\venv_t` + `server\MoviePilot-V3-T`
+  **freethreaded版 `MoviePilot-V3-T`**
+  ```cmd
+  .\runtime\venv_t\Scripts\python.exe .\server\MoviePilot-V3-T\app\main.py
+  ```
 
 ## 关于杀毒软件误报
 
