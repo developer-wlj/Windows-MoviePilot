@@ -828,13 +828,48 @@ namespace MoviePilot_V3.Services
             return args;
         }
 
+        /// <summary>定位 curl.exe：优先系统内置（System32，Windows 10 1803 / Server 2019 起自带），
+        /// 缺失时（更旧系统）回退按 PATH 查找手动部署的 curl（curl.se 发行包的 bin 目录已加入 PATH）；
+        /// 两处均找不到返回 null。跨类复用：PanelUpdateService 查询 / 下载面板更新共用同一逻辑。</summary>
+        public static string GetCurlExe()
+        {
+            string sysCurl = Path.Combine(Environment.SystemDirectory, "curl.exe");
+            if (File.Exists(sysCurl))
+            {
+                return sysCurl;
+            }
+            // 系统内置缺失：按 PATH 逐目录查找（系统 + 用户合并值在进程启动时固定，改 PATH 后需重启面板）
+            string path = Environment.GetEnvironmentVariable("PATH") ?? "";
+            foreach (string dir in path.Split(';'))
+            {
+                string d = dir.Trim().Trim('"');
+                if (d.Length == 0)
+                {
+                    continue;
+                }
+                try
+                {
+                    string candidate = Path.Combine(d, "curl.exe");
+                    if (File.Exists(candidate))
+                    {
+                        return candidate;
+                    }
+                }
+                catch
+                {
+                    // PATH 中可能含无权限 / 畸形目录段：跳过继续找
+                }
+            }
+            return null;
+        }
+
         /// <summary>下载文件：成功返回 true；失败删除残留文件并返回 false。</summary>
         private static bool DownloadFile(string url, string destFile, Action<string> log, bool withAuth)
         {
-            string curlExe = Path.Combine(Environment.SystemDirectory, "curl.exe");
-            if (!File.Exists(curlExe))
+            string curlExe = GetCurlExe();
+            if (curlExe == null)
             {
-                log("未找到系统 curl.exe，无法下载");
+                log("未找到 curl.exe（系统内置与 PATH 均无），无法下载");
                 return false;
             }
             log("下载: " + url);

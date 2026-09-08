@@ -29,6 +29,18 @@ reg query "HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" /v Release
 
 > https://dotnet.microsoft.com/zh-cn/download/dotnet-framework/net48
 
+### 下载组件 curl
+
+MoviePilot-V3 在运行时调用 **curl** 作为下载后端（下载便携版运行时、前端与站点资源、面板更新等）。curl 自 **Windows 10 1803** 与 **Windows Server 2019** 起成为**系统内置组件**（位于 `C:\Windows\System32\curl.exe`），绝大多数系统无需任何处理。
+
+若目标主机早于上述版本（无内置 curl），需**手动部署**：
+
+1. 从 <https://curl.se/windows/> 获取适用于 **x64** 的二进制发行包
+2. 解压后将其 **`bin` 子目录**（含 `curl.exe`）注册至**系统全局 PATH** 环境变量
+3. 变更环境变量后，请**重新启动 MoviePilot-V3**（面板），确保新路径被正确加载（后续启动的服务同样继承该 PATH）
+
+> 面板**优先**调用系统内置 `curl.exe`，找不到时才回退按 `PATH` 查找手动部署的 curl；两者均无时，下载操作会提示「未找到 curl.exe（系统内置与 PATH 均无）」。
+
 ### 其他说明
 
 - 建议运行到非系统盘（如 D 盘），避免 Program Files 目录的权限问题

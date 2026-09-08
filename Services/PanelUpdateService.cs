@@ -10,7 +10,8 @@ namespace MoviePilot_V3.Services
     /// 面板自更新：查询开发者仓库（developer-wlj/Windows-MoviePilot）GitHub Release 的最新版本，
     /// 与当前面板版本比较；确认后下载新版 MoviePilot-V3.exe 到 TMP_DIR，把当前 exe 改名
     /// MoviePilot-V3-old.exe 后移入运行目录（调用方随后重启面板，旧 exe 由新版启动时清理）。
-    /// 网络请求走系统 curl（与 EnvironmentSetup 下载一致），支持配置的 GitHub Token 与代理；
+    /// 网络请求走 curl（与 EnvironmentSetup 下载一致：优先系统内置 System32，
+    /// 缺失时回退 PATH 手动部署的 curl），支持配置的 GitHub Token 与代理；
     /// curl 子进程注册到活动进程表，面板退出 / 关机时由 KillActiveProcesses 统一终止，
     /// 不会在应用退出后遗留运行。
     /// </summary>
@@ -188,8 +189,8 @@ namespace MoviePilot_V3.Services
         private static string RunCurl(string arguments, out int exitCode)
         {
             exitCode = -1;
-            string curlExe = Path.Combine(Environment.SystemDirectory, "curl.exe");
-            if (!File.Exists(curlExe))
+            string curlExe = EnvironmentSetup.GetCurlExe();
+            if (curlExe == null)
             {
                 return null;
             }
