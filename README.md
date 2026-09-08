@@ -17,6 +17,12 @@
 - **阻止系统休眠**：可开启阻止 Windows 空闲休眠 / 睡眠，保证长时间下载与任务运行不中断
 - **双版本后端**：支持标准版与 freethreaded 版（Python 免费线程）后端环境，独立隔离、一键切换
 
+## 系统要求
+
+- Windows 10 / 11 64 位
+- 需安装 **.NET Framework 4.8 运行时**
+- **低于Windows Server 2019**（及 Windows 10 1803 之前的版本）未内置 curl 与 tar，首次运行前需手动下载部署这两个组件（curl 用于下载、tar 用于解压），步骤见 [详细说明](README-advanced.md)「运行环境要求」
+
 ## 目录结构
 
 ```

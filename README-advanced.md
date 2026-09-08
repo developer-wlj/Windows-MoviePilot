@@ -6,6 +6,7 @@
 
 - Windows 10 / 11 64 位（已在 Windows 24H2 验证）
 - 必须安装 **.NET Framework 4.8 运行时**（本程序基于 4.8 构建，缺省会无法启动）
+- **低于 Windows Server 2019**（以及 Windows 10 1803 之前的版本）未内置 curl 与 tar，需按下方「系统组件 curl 与 tar」手动部署后再使用
 
 ### 检测是否已安装 .NET Framework 4.8
 
@@ -29,17 +30,34 @@ reg query "HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" /v Release
 
 > https://dotnet.microsoft.com/zh-cn/download/dotnet-framework/net48
 
-### 下载组件 curl
+### 系统组件 curl（下载）与 tar（解压）
 
-MoviePilot-V3 在运行时调用 **curl** 作为下载后端（下载便携版运行时、前端与站点资源、面板更新等）。curl 自 **Windows 10 1803** 与 **Windows Server 2019** 起成为**系统内置组件**（位于 `C:\Windows\System32\curl.exe`），绝大多数系统无需任何处理。
+MoviePilot-V3 运行时调用系统 **curl** 作为下载后端（下载便携版 nginx / Git / Python / uv、前端与站点资源、面板更新等），调用系统 **tar**（即 libarchive 的 bsdtar）作为解压后端（解压 zip 与 tar.gz 压缩包）。两者是微软在 **Windows 10 1803**（2018 年 4 月更新，内部版本 17134）起一同随系统内置的组件（位于 `C:\Windows\System32\`），绝大多数系统无需任何处理；**凡低于 Windows 10 1803（内部版本 < 17134）或低于 Windows Server 2019（内部版本 < 17763）的系统（如 Windows 10 1709 及更早、Windows Server 2016），两个组件均未内置，需手动安装**（部署方法见下方对照表与说明）：
 
-若目标主机早于上述版本（无内置 curl），需**手动部署**：
+| 系统版本 | curl / tar 内置情况 |
+| --- | --- |
+| Windows 10 1803 及以上（内部版本 ≥ 17134） | 已内置（`C:\Windows\System32\curl.exe` / `tar.exe`），无需处理 |
+| Windows 10 1709 及更早（1507 ~ 1709） | 未内置，需手动部署 |
+| Windows Server 2019 及以上（内部版本 ≥ 17763） | 已内置（`C:\Windows\System32\curl.exe` / `tar.exe`），无需处理 |
+| Windows Server 2016（内部版本 14393） | 未内置，需手动部署 |
+
+> 查看本机系统版本：`Win` + `R` 运行 `winver`，或 PowerShell 执行 `(Get-CimInstance Win32_OperatingSystem).Version`（返回如 `10.0.17763`）。
+
+**curl（下载）**：
 
 1. 从 <https://curl.se/windows/> 获取适用于 **x64** 的二进制发行包
-2. 解压后将其 **`bin` 子目录**（含 `curl.exe`）注册至**系统全局 PATH** 环境变量
+2. 解压后将其 **`bin` 子目录**（含 `curl.exe`）注册至**系统全局 PATH** 环境变量（或直接把 `curl.exe` 复制到 `C:\Windows\System32\`）
 3. 变更环境变量后，请**重新启动 MoviePilot-V3**（面板），确保新路径被正确加载（后续启动的服务同样继承该 PATH）
 
-> 面板**优先**调用系统内置 `curl.exe`，找不到时才回退按 `PATH` 查找手动部署的 curl；两者均无时，下载操作会提示「未找到 curl.exe（系统内置与 PATH 均无）」。
+> 面板**优先**调用系统内置 `curl.exe`，找不到时才回退按 `PATH` 查找手动部署的 curl；两者均无时，下载操作会提示「未找到 curl.exe（系统内置与 PATH 均无），无法下载」。
+
+**tar（解压）**：
+
+1. 从 <https://github.com/li-ruijie/libarchive/releases> 获取 **Windows** 二进制包（内含 `bsdtar.exe`） 选择*-windows-msvc-x64-static.zip或*-windows-mingw-x64-static.zip都可以
+2. 将 `bsdtar.exe` **重命名为 `tar.exe`**
+3. 复制到 `C:\Windows\System32\`（**必须放在该固定目录**：面板只在此路径查找 tar，不按 PATH 查找）
+
+> 缺少 tar 时，首次环境准备的解压操作会提示「未找到系统 tar.exe，无法解压」。部署完成后可开新命令窗口执行 `curl --version` 与 `tar --version` 验证，均有版本输出即就绪。
 
 ### 其他说明
 

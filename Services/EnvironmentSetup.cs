@@ -910,7 +910,11 @@ namespace MoviePilot_V3.Services
             return true;
         }
 
-        /// <summary>把源目录的全部内容移动到目标目录（目标自动创建）。</summary>
+        /// <summary>把源目录的全部内容移动到目标目录（目标自动创建）。
+        /// 目标存在同名条目时覆盖式合并：目录递归合并子内容（保留目录内既有其他文件），
+        /// 文件先删旧再移动 —— .NET Framework 的 Directory.Move / File.Move 不允许目标已存在，
+        /// 而安装目录可能先有残留内容（如 Nginx 主体未装成时 SyncNginxConfigs 已把配置同步进
+        /// conf、或上次安装中断留下的半成品），直接移动会抛 IOException 导致组件永远装不上。</summary>
         private static void MoveContents(string srcDir, string destDir)
         {
             Directory.CreateDirectory(destDir);
@@ -919,10 +923,24 @@ namespace MoviePilot_V3.Services
                 string target = Path.Combine(destDir, Path.GetFileName(entry));
                 if (Directory.Exists(entry))
                 {
-                    Directory.Move(entry, target);
+                    if (Directory.Exists(target))
+                    {
+                        // 同名目录已存在：递归合并子内容（覆盖同名文件、保留目标内既有其他文件）
+                        MoveContents(entry, target);
+                        try { Directory.Delete(entry); } catch { }
+                    }
+                    else
+                    {
+                        Directory.Move(entry, target);
+                    }
                 }
                 else
                 {
+                    // File.Move 在 .NET Framework 上不支持覆盖：先删除旧文件再移动
+                    if (File.Exists(target))
+                    {
+                        File.Delete(target);
+                    }
                     File.Move(entry, target);
                 }
             }
