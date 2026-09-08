@@ -47,9 +47,10 @@ MoviePilot-V3 运行时调用系统 **curl** 作为下载后端（下载便携�
 
 1. 从 <https://curl.se/windows/> 获取适用于 **x64** 的二进制发行包
 2. 解压后将其 **`bin` 子目录**（含 `curl.exe`）注册至**系统全局 PATH** 环境变量（或直接把 `curl.exe` 复制到 `C:\Windows\System32\`）
-3. 变更环境变量后，请**重新启动 MoviePilot-V3**（面板），确保新路径被正确加载（后续启动的服务同样继承该 PATH）
+3. **配置 CA 证书（必须）**：curl.se 官方构建基于 OpenSSL，未内置系统证书信任链，访问 https（GitHub 等）会报证书错误；发行包 **`bin` 子目录内已自带** `curl-ca-bundle.crt` 证书（与 `curl.exe` 同目录），**无需另行下载**。然后新增**系统环境变量** `CURL_CA_BUNDLE`，值设为该证书文件的完整路径（如 `C:\Windows\System32\curl-ca-bundle.crt`）
+4. 变更环境变量后，请**重新启动 MoviePilot-V3**（面板），确保新路径与环境变量被正确加载（后续启动的服务同样继承该 PATH 与环境变量）
 
-> 面板**优先**调用系统内置 `curl.exe`，找不到时才回退按 `PATH` 查找手动部署的 curl；两者均无时，下载操作会提示「未找到 curl.exe（系统内置与 PATH 均无），无法下载」。
+> 面板**优先**调用系统内置 `curl.exe`（基于 Windows 原生证书存储，**无需**设置 CURL_CA_BUNDLE），找不到时才回退按 `PATH` 查找手动部署的 curl；两者均无时，下载操作会提示「未找到 curl.exe（系统内置与 PATH 均无），无法下载」。
 
 **tar（解压）**：
 
@@ -57,7 +58,7 @@ MoviePilot-V3 运行时调用系统 **curl** 作为下载后端（下载便携�
 2. 将 `bsdtar.exe` **重命名为 `tar.exe`**
 3. 复制到 `C:\Windows\System32\`（**必须放在该固定目录**：面板只在此路径查找 tar，不按 PATH 查找）
 
-> 缺少 tar 时，首次环境准备的解压操作会提示「未找到系统 tar.exe，无法解压」。部署完成后可开新命令窗口执行 `curl --version` 与 `tar --version` 验证，均有版本输出即就绪。
+> 缺少 tar 时，首次环境准备的解压操作会提示「未找到系统 tar.exe，无法解压」。部署完成后可开新命令窗口执行 `curl --version` 与 `tar --version` 验证；再执行 `curl -I https://github.com` 确认证书配置正常（不再报 `SSL certificate problem`）即全部就绪。
 
 ### 其他说明
 
