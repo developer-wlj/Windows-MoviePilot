@@ -75,6 +75,7 @@
     </Reference>
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Management" />
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
@@ -95,6 +96,7 @@
     <Compile Include="Services\NginxConfigService.cs" />
     <Compile Include="Services\PanelUpdateService.cs" />
     <Compile Include="Services\EnvironmentSetup.cs" />
+    <Compile Include="Services\LogExtensions.cs" />
     <Compile Include="Services\BundledResources.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

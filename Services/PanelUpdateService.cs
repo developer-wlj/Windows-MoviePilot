@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace MoviePilot_V3.Services
@@ -10,10 +9,8 @@ namespace MoviePilot_V3.Services
     /// 面板自更新：查询开发者仓库（developer-wlj/Windows-MoviePilot）GitHub Release 的最新版本，
     /// 与当前面板版本比较；确认后下载新版 MoviePilot-V3.exe 到 TMP_DIR，把当前 exe 改名
     /// MoviePilot-V3-old.exe 后移入运行目录（调用方随后重启面板，旧 exe 由新版启动时清理）。
-    /// 网络请求走 curl（与 EnvironmentSetup 下载一致：优先系统内置 System32，
-    /// 缺失时回退 PATH 手动部署的 curl），支持配置的 GitHub Token 与代理；
-    /// curl 子进程注册到活动进程表，面板退出 / 关机时由 KillActiveProcesses 统一终止，
-    /// 不会在应用退出后遗留运行。
+    /// 网络请求由 .NET 内置 HttpWebRequest 完成（EnvironmentSetup 程序集下载器，不再依赖系统 curl
+    /// 组件，任意 Windows 版本可用），支持配置的 GitHub Token 与代理（系统代理 / 手动 http / 关闭）。
     /// </summary>
     public static class PanelUpdateService
     {
@@ -30,16 +27,16 @@ namespace MoviePilot_V3.Services
         /// <summary>查询仓库最新 Release 的 tag_name（如 v1.0.4）；请求失败或解析不到时返回 null。</summary>
         public static string FetchLatestTag(Action<string> log)
         {
-            string json = RunCurl("-sS -L --fail --connect-timeout 10 --max-time 30 " + BuildAuthProxyArgs() + "\"" + ReleaseLatestApi + "\"", out int code);
-            if (code != 0)
+            string json = EnvironmentSetup.HttpGetText(ReleaseLatestApi, log, true, 30);
+            if (json == null)
             {
-                log("查询面板最新版本失败（curl 退出码 " + code + "），请检查网络 / 代理 / GitHub Token");
+                log.Warn("查询面板最新版本失败，请检查网络 / 代理 / GitHub Token");
                 return null;
             }
-            Match m = TagNameRegex.Match(json ?? "");
+            Match m = TagNameRegex.Match(json);
             if (!m.Success)
             {
-                log("未从 GitHub API 响应中解析到 tag_name，请检查网络或稍后重试（响应可能被限流/拦截）");
+                log.Warn("未从 GitHub API 响应中解析到 tag_name，请检查网络或稍后重试（响应可能被限流/拦截）");
                 return null;
             }
             return m.Groups[1].Value.Trim();
@@ -72,24 +69,21 @@ namespace MoviePilot_V3.Services
         {
             if (ParseVersion(tag) == null)
             {
-                log("版本标签格式非法，拒绝下载: " + tag);
+                log.Error("版本标签格式非法，拒绝下载: " + tag);
                 return null;
             }
             string destFile = Path.Combine(AppConfig.TMP_DIR, "MoviePilot-V3." + tag + ".exe");
             TryDeleteFile(destFile); // 清理上次下载失败的残留
             string url = ReleaseDownloadBase + tag + "/" + AssetName;
-            log("正在下载面板 " + tag + " ...");
-            string output = RunCurl("-sS -L --fail --connect-timeout 15 --max-time 600 --retry 2 --retry-delay 2 " +
-                BuildAuthProxyArgs() + "-o \"" + destFile + "\" \"" + url + "\"", out int code);
-            if (code != 0)
+            log.Info("正在下载面板 " + tag + " ...");
+            if (!EnvironmentSetup.HttpDownloadToFile(url, destFile, log, true, 600))
             {
-                log("下载面板失败（curl 退出码 " + code + "）: " + TrimTail(output));
-                TryDeleteFile(destFile);
+                // 失败时 HttpDownloadToFile 已写日志并删除残留文件
                 return null;
             }
             if (!IsValidExe(destFile))
             {
-                log("下载的文件校验失败（不是有效的可执行文件，可能被代理/网络拦截），已删除");
+                log.Error("下载的文件校验失败（不是有效的可执行文件，可能被代理/网络拦截），已删除");
                 TryDeleteFile(destFile);
                 return null;
             }
@@ -130,7 +124,7 @@ namespace MoviePilot_V3.Services
             {
                 // 运行中的 exe 无法删除但允许改名：先腾出原名
                 File.Move(exePath, oldPath);
-                log("旧版面板已改名 " + OldExeName + "（新版启动后自动清理）");
+                log.Info("旧版面板已改名 " + OldExeName + "（新版启动后自动清理）");
             }
             catch (Exception ex)
             {
@@ -148,7 +142,7 @@ namespace MoviePilot_V3.Services
                     if (File.Exists(oldPath) && !File.Exists(exePath))
                     {
                         File.Move(oldPath, exePath);
-                        log("已回滚恢复原面板 exe");
+                        log.Warn("已回滚恢复原面板 exe");
                     }
                 }
                 catch
@@ -166,82 +160,6 @@ namespace MoviePilot_V3.Services
         }
 
         // ---- 私有辅助 ----
-
-        /// <summary>构造 curl 的代理与 GitHub Token 参数（与 EnvironmentSetup.BuildCurlArgs 一致）。</summary>
-        private static string BuildAuthProxyArgs()
-        {
-            string extra = "";
-            string token = (AppSettings.Current.GitHubToken ?? "").Trim();
-            if (token.Length > 0)
-            {
-                extra += "-H \"Authorization: Bearer " + token + "\" ";
-            }
-            string proxyUrl = EnvironmentSetup.BuildProxyUrl();
-            if (proxyUrl != null)
-            {
-                extra += "--proxy \"" + proxyUrl + "\" ";
-            }
-            return extra;
-        }
-
-        /// <summary>执行 curl 并合并捕获 stdout/stderr（UTF-8 解码），超时强制结束并返回空串；
-        /// 启动失败返回 null。exitCode 为 curl 退出码（未启动成功时为 -1）。</summary>
-        private static string RunCurl(string arguments, out int exitCode)
-        {
-            exitCode = -1;
-            string curlExe = EnvironmentSetup.GetCurlExe();
-            if (curlExe == null)
-            {
-                return null;
-            }
-            try
-            {
-                // WorkingDirectory 需存在（首次运行未点"启动服务"时 tmp 目录可能尚未创建）
-                Directory.CreateDirectory(AppConfig.TMP_DIR);
-                ProcessStartInfo psi = new ProcessStartInfo
-                {
-                    FileName = curlExe,
-                    Arguments = arguments,
-                    WorkingDirectory = AppConfig.TMP_DIR,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    StandardOutputEncoding = Encoding.UTF8,
-                    StandardErrorEncoding = Encoding.UTF8
-                };
-                using (Process p = Process.Start(psi))
-                {
-                    // 注册到活动进程表：面板退出 / 关机时统一终止，curl 不遗留后台运行
-                    EnvironmentSetup.TrackProcess(p);
-                    try
-                    {
-                        StringBuilder sb = new StringBuilder();
-                        p.OutputDataReceived += (s, e) => { if (e.Data != null) sb.AppendLine(e.Data); };
-                        p.ErrorDataReceived += (s, e) => { if (e.Data != null) sb.AppendLine(e.Data); };
-                        p.BeginOutputReadLine();
-                        p.BeginErrorReadLine();
-                        if (!p.WaitForExit(10 * 60 * 1000))
-                        {
-                            // 卡死兜底：强制结束（Kill 后管道关闭，下方读取必然完成）
-                            try { p.Kill(); } catch { }
-                        }
-                        p.WaitForExit();
-                        exitCode = p.ExitCode;
-                        return sb.ToString();
-                    }
-                    finally
-                    {
-                        EnvironmentSetup.UntrackProcess(p);
-                    }
-                }
-            }
-            catch
-            {
-                return null;
-            }
-        }
 
         /// <summary>解析面板版本标签（形如 v1.0.4，v 前缀可选，1~3 段纯数字）；非法返回 null。</summary>
         private static int[] ParseVersion(string tag)
@@ -298,7 +216,7 @@ namespace MoviePilot_V3.Services
             }
         }
 
-        /// <summary>重试删除文件（进程 Kill 后文件锁可能延迟释放）。</summary>
+        /// <summary>重试删除文件（下载失败 / 更新残留清理，文件锁可能延迟释放）。</summary>
         private static void TryDeleteFile(string file)
         {
             for (int i = 0; i < 3; i++)
@@ -316,17 +234,6 @@ namespace MoviePilot_V3.Services
                     System.Threading.Thread.Sleep(500);
                 }
             }
-        }
-
-        /// <summary>日志取输出尾部（单行截断，便于排查 curl 报错）。</summary>
-        private static string TrimTail(string text)
-        {
-            if (string.IsNullOrEmpty(text))
-            {
-                return "";
-            }
-            string one = text.Replace("\r", " ").Replace("\n", " ").Trim();
-            return one.Length > 300 ? one.Substring(one.Length - 300) : one;
         }
     }
 }

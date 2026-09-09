@@ -65,7 +65,7 @@ namespace MoviePilot_V3.Services
                         RemoveEmptyDirsUpTo(AppConfig.CurrentSiteDir);
                         if (moved)
                         {
-                            log("检测到站点资源残留，已备份到: " + backupDir);
+                            log.Info("检测到站点资源残留，已备份到: " + backupDir);
                         }
                     }
                     catch (Exception ex)
@@ -86,7 +86,7 @@ namespace MoviePilot_V3.Services
                 string cloneArgs = "clone --branch v3 --single-branch " + VersionRepo + " \"" + AppConfig.CurrentBackendDir + "\"";
                 if (GetOfficialLatestTag(gitExe, envPath, out latestTag, out latestTagHash, log))
                 {
-                    log("首次克隆使用官方最新标签 " + latestTag + ", 正在克隆...");
+                    log.Info("首次克隆使用官方最新标签 " + latestTag + ", 正在克隆...");
                     cloneArgs = "clone --branch " + latestTag + " --single-branch " + VersionRepo + " \"" + AppConfig.CurrentBackendDir + "\"";
                 }
                 else
@@ -106,7 +106,7 @@ namespace MoviePilot_V3.Services
                 {
                     return "克隆后重建 v3 分支失败:\n" + branchOut;
                 }
-                log("后端代码克隆完成");
+                log.Info("后端代码克隆完成");
                 // 克隆后立即打补丁：无论哪个 Git 源，都从 gitee v3-rebase 分支 cherry-pick rebase 补丁；
                 // 补丁分支可能落后官方（官方推进后补丁上下文不匹配会冲突），冲突时自动回退官方纯净版
                 // （丢弃补丁）保证首次部署不被补丁阻塞，与升级/启动更新路径的行为一致
@@ -158,12 +158,12 @@ namespace MoviePilot_V3.Services
                 }
                 Directory.CreateDirectory(AppConfig.CONFIG_DIR);
                 File.Copy(src, dest, true);
-                log("已备份 category.yaml 到 " + dest);
+                log.Info("已备份 category.yaml 到 " + dest);
                 return true;
             }
             catch (Exception ex)
             {
-                log("备份 category.yaml 失败: " + ex.Message);
+                log.Error("备份 category.yaml 失败: " + ex.Message);
                 return false;
             }
         }
@@ -196,11 +196,11 @@ namespace MoviePilot_V3.Services
                     return; // 与当前内容一致，无需恢复
                 }
                 File.Copy(backup, dest, true);
-                log("已恢复 category.yaml 用户修改到 " + dest);
+                log.Info("已恢复 category.yaml 用户修改到 " + dest);
             }
             catch (Exception ex)
             {
-                log("恢复 category.yaml 备份失败: " + ex.Message);
+                log.Error("恢复 category.yaml 备份失败: " + ex.Message);
             }
         }
 
@@ -239,7 +239,7 @@ namespace MoviePilot_V3.Services
         /// <param name="onFinished">流程结束回调：参数1 是否成功，参数2 提示信息</param>
         public static void Upgrade(Action<string> log, Action<bool, string> onFinished)
         {
-            log("开始升级版本...");
+            log.Info("开始升级版本...");
 
             // 确保后端代码存在（首次克隆官方 v3 + 打补丁；已存在则同步远端）
             string codeError = EnsureCode(log);
@@ -268,19 +268,19 @@ namespace MoviePilot_V3.Services
             {
                 string localHash = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" rev-parse HEAD",
                     AppConfig.CurrentBackendDir, envPath).Trim();
-                log("官方最新标签: " + latestTag + " (" + ShortHash(latestTagHash) + ")，本地: " + ShortHash(localHash));
+                log.Info("官方最新标签: " + latestTag + " (" + ShortHash(latestTagHash) + ")，本地: " + ShortHash(localHash));
 
                 // 本地 HEAD 打过 cherry-pick 补丁后 hash 已不是标签 hash 本身，不能直接比较相等；
                 // 以“本地历史是否包含官方最新标签提交”判断是否已是最新
                 if (IsAncestorOfHEAD(gitExe, envPath, latestTagHash))
                 {
                     isUpdate = false;
-                    log("本地已是最新版本");
+                    log.Info("本地已是最新版本");
                     // 补丁分支有更新（远程最新 rebase 提交时间比 app.ini 记录新）时，先像"修复冲突"
                     // 一样强制重建官方 v3 基线（丢弃本地旧补丁残留），再重新 cherry-pick 新补丁
                     if (HasNewPatches(gitExe, envPath, log))
                     {
-                        log("检测到补丁分支有更新，先强制重建官方 v3 分支...");
+                        log.Info("检测到补丁分支有更新，先强制重建官方 v3 分支...");
                         string rebuildError = ForceRebuildV3(gitExe, envPath, log);
                         if (rebuildError != null)
                         {
@@ -300,20 +300,20 @@ namespace MoviePilot_V3.Services
                 }
                 else
                 {
-                    log("发现新版本，签出覆盖 v3 分支...");
+                    log.Info("发现新版本，签出覆盖 v3 分支...");
                     // 升级会重建分支覆盖已跟踪模板，先备份可能被用户修改过的 category.yaml
                     backedUp = BackupCategoryYaml(log);
                     string rebuildError = RebuildV3FromTag(gitExe, envPath, latestTag, latestTagHash, log);
                     if (rebuildError != null)
                     {
                         // 官方提交不可用或签出失败：放弃升级，继续使用当前版本（不视为错误）
-                        log("放弃本次升级，继续使用当前版本: " + rebuildError);
+                        log.Warn("放弃本次升级，继续使用当前版本: " + rebuildError);
                         output = "UPGRADE_SKIPPED";
                         isUpdate = false;
                     }
                     else
                     {
-                        log("v3 分支已更新到 " + latestTag);
+                        log.Info("v3 分支已更新到 " + latestTag);
                         // 更新后重新打补丁（冲突时自动回退官方纯净版并提示）
                         string patchError = ApplyRebasePatchesWithFallback(gitExe, envPath, log);
                         if (patchError != null)
@@ -333,31 +333,31 @@ namespace MoviePilot_V3.Services
                 onFinished(false, "未获取到官方版本标签，请检查网络或稍后重试。");
                 return;
             }
-            log("Git输出: " + output);
+            log.Info("Git输出: " + output);
 
             bool failed = false;
             string resultMessage;
             if (output == "UPGRADE_SKIPPED")
             {
-                log("官方最新版本不可用，继续使用当前版本");
+                log.Warn("官方最新版本不可用，继续使用当前版本");
                 resultMessage = "官方最新版本不可用，继续使用当前版本";
             }
             else if (output.IndexOf("Already up to date", StringComparison.OrdinalIgnoreCase) >= 0 ||
                      output.Contains("已经是最新的"))
             {
-                log("当前已是最新版本");
+                log.Info("当前已是最新版本");
                 resultMessage = "当前已是最新版本";
             }
             else if (output.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 ||
                      output.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                log("升级出错，请检查网络");
+                log.Error("升级出错，请检查网络");
                 resultMessage = "升级失败:\n" + output;
                 failed = true;
             }
             else
             {
-                log("代码更新成功");
+                log.Info("代码更新成功");
                 resultMessage = "代码更新成功";
             }
             if (isUpdate)
@@ -379,7 +379,7 @@ namespace MoviePilot_V3.Services
             }
             else
             {
-                log("升级流程完成");
+                log.Info("升级流程完成");
                 onFinished(true, resultMessage + " 服务已重启。");
             }
         }
@@ -392,7 +392,7 @@ namespace MoviePilot_V3.Services
         /// <param name="onFinished">流程结束回调：参数1 是否成功，参数2 提示信息</param>
         public static void FixCodeConflict(Action<string> log, Action<bool, string> onFinished)
         {
-            log("开始修复运行环境...");
+            log.Info("开始修复运行环境...");
             EnvironmentSetup.EnsureEnvironment(log);
 
             string envPath = AppConfig.BuildEnvPath();
@@ -426,7 +426,7 @@ namespace MoviePilot_V3.Services
             Thread.Sleep(500);
             ServiceManager.StartServices(log);
 
-            log("运行环境修复完成");
+            log.Info("运行环境修复完成");
             onFinished(true, "运行环境已修复，服务已重启。");
         }
 
@@ -449,7 +449,7 @@ namespace MoviePilot_V3.Services
             }
             if (!force) 
             {
-                log("已勾选\"更新时强制更新前端资源和后端认证和站点资源\"，强制刷新资源...");
+                log.Info("已勾选\"更新时强制更新前端资源和后端认证和站点资源\"，强制刷新资源...");
             }
             EnvironmentSetup.EnsureFrontend(log, true);
             EnvironmentSetup.RefreshSiteFiles(log);
@@ -467,7 +467,7 @@ namespace MoviePilot_V3.Services
             string cherryPickHead = Path.Combine(AppConfig.CurrentBackendDir, ".git", "CHERRY_PICK_HEAD");
             if (File.Exists(cherryPickHead))
             {
-                log("检测到未完成的 cherry-pick，先中止清理");
+                log.Warn("检测到未完成的 cherry-pick，先中止清理");
                 RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" cherry-pick --abort",
                     AppConfig.CurrentBackendDir, envPath);
             }
@@ -478,7 +478,7 @@ namespace MoviePilot_V3.Services
             {
                 return "官方源未找到版本标签，无法强制重建 v3 分支。";
             }
-            log("官方最新标签: " + latestTag + " (" + ShortHash(latestTagHash) + ") 正在克隆...");
+            log.Info("官方最新标签: " + latestTag + " (" + ShortHash(latestTagHash) + ") 正在克隆...");
 
             // 强制签出 v3 最新标签 hash：checkout -f -B v3 重建分支（-f 强制覆盖工作树/index
             // 残留，如预演/手动修改等，保证签出结果与官方标签完全一致），本地 cherry-pick 全部丢弃
@@ -495,7 +495,7 @@ namespace MoviePilot_V3.Services
             {
                 return "强制签出失败，当前 HEAD 与官方标签不一致 (" + ShortHash(head) + ")，请查看日志。";
             }
-            log("已强制签出官方 " + latestTag + "，本地 cherry-pick 已全部丢弃");
+            log.Warn("已强制签出官方 " + latestTag + "，本地 cherry-pick 已全部丢弃");
             // 已回退官方纯净版（丢弃补丁）：清除当前版本目录的补丁同步时间记录
             // （last_rebase_patch_time_v3/_t），否则旧记录会让下次 HasNewPatches 在补丁分支
             // 无新提交时误判“无新补丁”而跳过补丁；清空后按“未记录（首次）”处理，下次升级/
@@ -521,11 +521,11 @@ namespace MoviePilot_V3.Services
                 {
                     break;
                 }
-                log("补丁源不可用 (" + pr + ")，尝试下一源...");
+                log.Warn("补丁源不可用 (" + pr + ")，尝试下一源...");
             }
             if (fetchOutput == null || fetchOutput.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                log("拉取补丁分支失败，按无新补丁处理: " + fetchOutput);
+                log.Warn("拉取补丁分支失败，按无新补丁处理: " + fetchOutput);
                 return false;
             }
 
@@ -536,7 +536,7 @@ namespace MoviePilot_V3.Services
             if (ctOutput.Length == 0 || ctOutput.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 !long.TryParse(ctOutput, out remoteUnix))
             {
-                log("补丁分支无 rebase 提交或获取时间失败，按无新补丁处理");
+                log.Info("补丁分支无 rebase 提交或获取时间失败，按无新补丁处理");
                 return false;
             }
 
@@ -544,10 +544,10 @@ namespace MoviePilot_V3.Services
             DateTime lastTime;
             if (!DateTime.TryParse(AppSettings.Current.CurrentLastRebasePatchTime, out lastTime))
             {
-                log("未记录补丁同步时间（首次），需要同步补丁");
+                log.Info("未记录补丁同步时间（首次），需要同步补丁");
                 return true;
             }
-            log("补丁分支最新提交: " + remoteTime.ToString("yyyy-MM-dd HH:mm:ss") +
+            log.Info("补丁分支最新提交: " + remoteTime.ToString("yyyy-MM-dd HH:mm:ss") +
                 "，本地记录: " + lastTime.ToString("yyyy-MM-dd HH:mm:ss"));
             return remoteTime > lastTime;
         }
@@ -574,27 +574,31 @@ namespace MoviePilot_V3.Services
                 }
 
                 // 冲突兜底：强制重建官方 v3 纯净版（丢弃补丁），日志提示
-                log("补丁 cherry-pick 失败（可能冲突），强制回退官方 v3 纯净版: " + patchError);
+                log.Warn("补丁 cherry-pick 失败（可能冲突），强制回退官方 v3 纯净版: " + patchError);
                 string fallbackError = ForceRebuildV3(gitExe, envPath, log);
                 if (fallbackError != null)
                 {
-                    log("回退重建失败: " + fallbackError);
+                    log.Error("回退重建失败: " + fallbackError);
                     return fallbackError;
                 }
-                log("已回退到官方 v3 纯净版（未并入补丁），可检查补丁源后重试");
+                log.Warn("已回退到官方 v3 纯净版（未并入补丁），可检查补丁源后重试");
                 return null;
             }
             return null;
         }
 
         /// git 是否就绪（便携版 Git 缺失时提示先点击"启动服务"完成环境准备）。
+        /// git 不读取 Windows 系统代理：每次使用 git 前把当前代理（系统代理 / 手动 http / 关闭）
+        /// 重新写入 git 全局配置——用户切换了系统代理（如代理软件换端口 / 退出）后，
+        /// 不必到面板配置里改动，git 命令执行前都会按最新状态刷新。
         private static bool EnsureGitReady(Action<string> log)
         {
             if (File.Exists(Path.Combine(AppConfig.GIT_CMD_DIR, "git.exe")))
             {
+                EnvironmentSetup.ApplyGitProxy(log);
                 return true;
             }
-            log("错误: 未找到便携版 Git，请先点击\"启动服务\"完成环境准备（自动下载 Git）");
+            log.Error("未找到便携版 Git，请先点击\"启动服务\"完成环境准备（自动下载 Git）");
             return false;
         }
 
@@ -609,7 +613,7 @@ namespace MoviePilot_V3.Services
         /// </summary>
         public static void CheckUpdateOnStart(Action<string> log)
         {
-            log("启动检查更新: 获取官方仓库最新标签...");
+            log.Info("启动检查更新: 获取官方仓库最新标签...");
 
             if (!EnsureGitReady(log))
             {
@@ -623,7 +627,7 @@ namespace MoviePilot_V3.Services
 
             if (!Directory.Exists(Path.Combine(AppConfig.CurrentBackendDir, ".git")))
             {
-                log("后端目录不是Git仓库，跳过启动更新");
+                log.Warn("后端目录不是Git仓库，跳过启动更新");
                 return;
             }
 
@@ -634,16 +638,16 @@ namespace MoviePilot_V3.Services
                 // 2. 本地 v3 分支最新 hash
                 string localHash = RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" rev-parse HEAD",
                     AppConfig.CurrentBackendDir, envPath).Trim();
-                log("最新标签: " + latestTag + " (" + ShortHash(latestTagHash) + ")，本地: " + ShortHash(localHash));
+                log.Info("最新标签: " + latestTag + " (" + ShortHash(latestTagHash) + ")，本地: " + ShortHash(localHash));
 
                 if (IsAncestorOfHEAD(gitExe, envPath, latestTagHash))
                 {
-                    log("本地已是最新版本，无需更新");
-                    log("启动检查更新完成");
+                    log.Info("本地已是最新版本，无需更新");
+                    log.Info("启动检查更新完成");
                     return;
                 }
 
-                log("发现新版本，开始更新...");
+                log.Info("发现新版本，开始更新...");
 
                 // 3. 从 jxxghp 官方源拉取标签并在其提交上重建 v3 分支（替换老 v3）；
                 // 重建会覆盖已跟踪模板，先备份可能被用户修改过的 category.yaml
@@ -651,17 +655,17 @@ namespace MoviePilot_V3.Services
                 string rebuildError = RebuildV3FromTag(gitExe, envPath, latestTag, latestTagHash, log);
                 if (rebuildError != null)
                 {
-                    log("跳过本次更新，继续使用当前版本: " + rebuildError);
+                    log.Warn("跳过本次更新，继续使用当前版本: " + rebuildError);
                     return;
                 }
-                log("v3 分支已更新到 " + latestTag);
+                log.Info("v3 分支已更新到 " + latestTag);
 
                 // 4. 更新后重新打补丁：从 gitee v3-rebase 分支 cherry-pick 标题含 rebase 的提交
                 //（cherry-pick 冲突时自动强制重建官方 v3 纯净版并在日志提示）
                 string patchError = ApplyRebasePatchesWithFallback(gitExe, envPath, log);
                 if (patchError != null)
                 {
-                    log(patchError);
+                    log.Error(patchError);
                     return;
                 }
                 // 官方更新成功：备份含用户修改时覆盖回，保留用户对分类的修改
@@ -673,12 +677,12 @@ namespace MoviePilot_V3.Services
                 // 6. 同步前端 / 认证 / 站点资源（按“更新时强制更新前端资源和后端认证和站点资源”配置决定是否强制覆盖）
                 SyncResourcesByConfig(log);
 
-                log("启动检查更新完成");
+                log.Info("启动检查更新完成");
             }
             else
             {
                 // 官方源（jxxghp）无版本标签时退出流程
-                log("未获取到官方版本标签，请检查网络或稍后重试。");
+                log.Warn("未获取到官方版本标签，请检查网络或稍后重试。");
                 return;
             }
         }
@@ -711,6 +715,9 @@ namespace MoviePilot_V3.Services
             {
                 return false;
             }
+            // git 不读 Windows 系统代理：每次使用 git 前把当前代理（系统代理 / 手动 http）
+            // 写入 git 全局配置——用户切换系统代理后，检测命令同样走新代理
+            EnvironmentSetup.ApplyGitProxy(log);
             if (!Directory.Exists(Path.Combine(AppConfig.CurrentBackendDir, ".git")))
             {
                 return false; // 后端代码未就绪（未点过"启动服务"）：不提示
@@ -727,7 +734,7 @@ namespace MoviePilot_V3.Services
             {
                 return false; // 官方最新标签已在本地历史中：已是最新
             }
-            log("检测到 MoviePilot 新版本标签: " + latestTag + " (" + ShortHash(latestTagHash) + ")，本地未包含。");
+            log.Info("检测到 MoviePilot 新版本标签: " + latestTag + " (" + ShortHash(latestTagHash) + ")，本地未包含。");
             return true;
         }
 
@@ -755,7 +762,7 @@ namespace MoviePilot_V3.Services
         {
             latestTag = null;
             latestTagHash = null;
-            if (isPrintLog) log("正在拉取官方标签...");
+            if (isPrintLog) log.Info("正在拉取官方标签...");
             string lsRemote = RunCommand(gitExe, "ls-remote --tags " + VersionRepo, AppConfig.BASE_DIR, envPath);
             Dictionary<string, string> tagCommits = new Dictionary<string, string>();
             foreach (string line in lsRemote.Split('\n'))
@@ -788,7 +795,7 @@ namespace MoviePilot_V3.Services
             {
                 // 输出尾部截断后写入日志，便于排查（网络失败 / 代理不可用 / 标签格式变化）
                 string tail = lsRemote.Length > 400 ? lsRemote.Substring(lsRemote.Length - 400) : lsRemote;
-                if (isPrintLog) log("ls-remote 未解析到版本标签，输出尾部: " + tail);
+                if (isPrintLog) log.Warn("ls-remote 未解析到版本标签，输出尾部: " + tail);
                 return false;
             }
 
@@ -866,7 +873,7 @@ namespace MoviePilot_V3.Services
                 {
                     break;
                 }
-                log("补丁源不可用 (" + pr + ")，尝试下一源...");
+                log.Warn("补丁源不可用 (" + pr + ")，尝试下一源...");
             }
             if (fetchOutput == null || fetchOutput.IndexOf("fatal", StringComparison.OrdinalIgnoreCase) >= 0)
             {
@@ -879,7 +886,7 @@ namespace MoviePilot_V3.Services
             string[] patches = logOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             if (patches.Length == 0)
             {
-                log("补丁分支无标题含 rebase 的提交，跳过补丁");
+                log.Info("补丁分支无标题含 rebase 的提交，跳过补丁");
                 return null;
             }
 
@@ -890,7 +897,7 @@ namespace MoviePilot_V3.Services
                 if (cpOut.IndexOf("nothing to commit", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     // 已应用过（改动已在本地）：跳过并继续
-                    log("补丁已应用过，跳过: " + ShortHash(patchHash));
+                    log.Info("补丁已应用过，跳过: " + ShortHash(patchHash));
                     RunCommand(gitExe, "-C \"" + AppConfig.CurrentBackendDir + "\" cherry-pick --abort",
                         AppConfig.CurrentBackendDir, envPath);
                     continue;
@@ -904,7 +911,7 @@ namespace MoviePilot_V3.Services
                         AppConfig.CurrentBackendDir, envPath);
                     return "cherry-pick 失败: " + patchHash + "\n" + cpOut;
                 }
-                log("补丁已并入: " + ShortHash(patchHash));
+                log.Info("补丁已并入: " + ShortHash(patchHash));
             }
 
             // 3. 记录本次已同步到的补丁分支最新提交时间（app.ini），供下次升级时间对比
@@ -967,13 +974,13 @@ namespace MoviePilot_V3.Services
                 }
                 catch (Exception ex)
                 {
-                    log("移动未跟踪文件失败: " + rel + " (" + ex.Message + ")");
+                    log.Warn("移动未跟踪文件失败: " + rel + " (" + ex.Message + ")");
                 }
             }
 
             if (count > 0)
             {
-                log("已移动 " + count + " 个未跟踪文件到: " + tmpDir);
+                log.Info("已移动 " + count + " 个未跟踪文件到: " + tmpDir);
             }
         }
 

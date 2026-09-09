@@ -87,6 +87,10 @@ namespace MoviePilot_V3
         // nginx 配置同步目录（首次运行时把 config 目录的 nginx.conf / common.conf 拷贝到这里）
         public static readonly string NGINX_CONFIG_DIR = Path.Combine(NGINX_DIR, "conf");
 
+        // 便携版 bsdtar（tar）目录：系统无内置 bsdtar 时自动下载 libarchive 包部署到这里，
+        // 供解压 tar.gz 使用（zip 已由程序集解压，不再依赖系统 tar）
+        public static readonly string TAR_DIR = Path.Combine(BIN_DIR, "tar");
+
 
         // Git 相关目录
         public static readonly string GIT_CMD_DIR = Path.Combine(GIT_DIR, "cmd");
@@ -146,7 +150,7 @@ namespace MoviePilot_V3
             return GIT_CMD_DIR + ";" + GIT_BIN_DIR + ";" + GIT_USR_BIN_DIR + ";" +
                    Path.Combine(CurrentVenvDir, "Scripts") + ";" +
                    Path.Combine(CurrentPythonDir, "Scripts") + ";" + CurrentPythonDir + ";" +
-                   UV_DIR + ";" + NGINX_DIR + ";" + BASE_DIR;
+                   UV_DIR + ";" + NGINX_DIR + ";" + TAR_DIR + ";" + BASE_DIR;
         }
     }
 }

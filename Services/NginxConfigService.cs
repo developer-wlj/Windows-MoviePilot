@@ -66,7 +66,7 @@ namespace MoviePilot_V3.Services
             string configFile = FindConfigFile();
             if (configFile == null)
             {
-                log("错误: 未找到 nginx 配置文件（" + Path.Combine(AppConfig.NGINX_DIR, "conf") + "）");
+                log.Error("未找到 nginx 配置文件（" + Path.Combine(AppConfig.NGINX_DIR, "conf") + "）");
                 return false;
             }
 
@@ -77,7 +77,7 @@ namespace MoviePilot_V3.Services
             }
             catch (Exception ex)
             {
-                log("读取 nginx 配置失败: " + ex.Message);
+                log.Error("读取 nginx 配置失败: " + ex.Message);
                 return false;
             }
 
@@ -88,7 +88,7 @@ namespace MoviePilot_V3.Services
             }
             catch (Exception ex)
             {
-                log("备份 nginx 配置失败: " + ex.Message);
+                log.Warn("备份 nginx 配置失败: " + ex.Message);
             }
 
             string updated = content;
@@ -111,19 +111,19 @@ namespace MoviePilot_V3.Services
 
             if (updated == content)
             {
-                log("nginx 配置无需修改（端口与现有配置一致）: " + configFile);
+                log.Info("nginx 配置无需修改（端口与现有配置一致）: " + configFile);
             }
             else
             {
                 try
                 {
                     File.WriteAllText(configFile, updated, Utf8NoBom);
-                    log("已更新 nginx 配置: " + configFile);
-                    log("  监听端口: " + nginxPort + "，后端端口: " + backendPort + "（原配置备份为 .bak）");
+                    log.Info("已更新 nginx 配置: " + configFile);
+                    log.Info("  监听端口: " + nginxPort + "，后端端口: " + backendPort + "（原配置备份为 .bak）");
                 }
                 catch (Exception ex)
                 {
-                    log("写入 nginx 配置失败: " + ex.Message);
+                    log.Error("写入 nginx 配置失败: " + ex.Message);
                     return false;
                 }
             }
@@ -139,7 +139,7 @@ namespace MoviePilot_V3.Services
         {
             if (!ServiceManager.IsRunning("nginx"))
             {
-                log("Nginx 未运行，端口配置将在下次启动服务时生效");
+                log.Info("Nginx 未运行，端口配置将在下次启动服务时生效");
                 return;
             }
 
@@ -155,11 +155,11 @@ namespace MoviePilot_V3.Services
                 };
                 psi.EnvironmentVariables["PATH"] = AppConfig.BuildEnvPath();
                 Process.Start(psi);
-                log("已重载 Nginx，新端口生效。修改后端端口，需重启服务");
+                log.Info("已重载 Nginx，新端口生效。修改后端端口，需重启服务");
             }
             catch (Exception ex)
             {
-                log("重载 Nginx 失败: " + ex.Message);
+                log.Warn("重载 Nginx 失败: " + ex.Message);
             }
         }
     }

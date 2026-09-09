@@ -107,14 +107,18 @@ namespace MoviePilot_V3.Services
         }
 
         /// 查询当前运行版本（面板配置"运行版本"）的 Python 后端进程 PID 列表：
-        /// 无参版本按当前版本转发，带参版本可指定标准版 / freethreaded 版（版本切换时停旧版用）。
+        /// 由 PowerShell 子进程按命令行特征匹配（标准版 / freethreaded 版共用，入口为对应
+        /// 版本目录的 app\main.py）；结果经临时文件中转：脚本把数字 PID 逐行写入临时文件，
+        /// 本进程等其退出后读取并秒删。不重定向输出流（避免定时查询频繁持有管道句柄）。
         private static List<int> GetBackendPythonPids()
         {
             List<int> pids = new List<int>();
+            string tmpFile = Path.Combine(Path.GetTempPath(),
+                "mp_pids_" + Process.GetCurrentProcess().Id + "_" + Guid.NewGuid().ToString("N") + ".txt");
             try
             {
                 // PowerShell 脚本：抑制首次加载模块的进度输出；按命令行特征匹配本面板启动的后端，
-                // 结果直接写标准输出（数字 PID，一行一个），由本进程管道捕获——无需经临时文件中转
+                // 结果直接写临时文件（数字 PID，一行一个）——不经管道中转，脚本退出即文件就绪
                 // 匹配当前运行版本的 python（venv launcher 最终
                 // 拉起的进程是基础解释器，命令行不含 venv 路径；
                 // 不匹配系统其他 python 进程）
@@ -122,7 +126,7 @@ namespace MoviePilot_V3.Services
                 // 序列，导致编译失败或误匹配；先转义为 \\（正则中匹配字面 \）再拼接
                 string binMatch = AppConfig.BIN_DIR.Replace("\\", "\\\\");
                 string script = "$ProgressPreference = 'SilentlyContinue'" + Environment.NewLine +
-                    "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { ($_.CommandLine -match '" + binMatch + "') -and $_.CommandLine -match '\\\\app\\\\main\\.py' } | ForEach-Object { $_.ProcessId }";
+                    "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { ($_.CommandLine -match '" + binMatch + "') -and $_.CommandLine -match '\\\\app\\\\main\\.py' } | ForEach-Object { $_.ProcessId } | Out-File -FilePath '" + tmpFile + "' -Encoding ascii";
                 string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
                 string psExe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),
                     "WindowsPowerShell", "v1.0", "powershell.exe");
@@ -131,33 +135,22 @@ namespace MoviePilot_V3.Services
                     FileName = psExe,
                     Arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand " + encoded,
                     UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    // 输出为纯数字 PID，任意编码解码都不会乱码；显式按 ASCII 解码即可
-                    StandardOutputEncoding = Encoding.ASCII,
-                    StandardErrorEncoding = Encoding.ASCII
+                    CreateNoWindow = true
+                    // 不重定向 stdout / stderr：查询结果经临时文件中转，不建管道、无流读取句柄
                 };
                 using (Process p = new Process())
                 {
                     p.StartInfo = psi;
-                    // 事件式异步读取 stdout / stderr：避免同步 ReadToEnd 与 WaitForExit 相互等待
-                    // 造成管道缓冲死锁（与项目其他子进程调用一致的防死锁写法），
-                    // 也不经临时文件中转（原实现写系统 temp 后秒删，本方案直接拿到输出）
-                    StringBuilder sb = new StringBuilder();
-                    p.OutputDataReceived += (s, e) => { if (e.Data != null) sb.AppendLine(e.Data); };
-                    p.ErrorDataReceived += (s, e) => { }; // 错误流一并重定向读取（防缓冲阻塞），内容不需要
                     p.Start();
-                    p.BeginOutputReadLine();
-                    p.BeginErrorReadLine();
                     if (!p.WaitForExit(8000))
                     {
-                        // 超时强制结束（子进程退出后管道关闭，下方 WaitForExit 必然完成）
-                        try { p.Kill(); } catch { }
+                        // 超时强制结束（临时文件可能未写完，下方按缺失/空内容处理）
+                        try { p.Kill(); p.WaitForExit(); } catch { }
                     }
-                    // 无参 WaitForExit 等待异步管道读取结束，随后解析 pids
-                    p.WaitForExit();
-                    foreach (string line in sb.ToString().Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                }
+                if (File.Exists(tmpFile))
+                {
+                    foreach (string line in File.ReadAllText(tmpFile).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
                     {
                         int pid;
                         if (int.TryParse(line.Trim(), out pid) && pid > 0)
@@ -171,6 +164,11 @@ namespace MoviePilot_V3.Services
             {
                 // 查询失败（如 PowerShell 不可用）时按无进程处理，调用方静默跳过
                 Debug.WriteLine("查询 Python 后端进程失败: " + ex.Message);
+            }
+            finally
+            {
+                // 临时文件用后即删（清理失败残留到系统 temp，可忽略）
+                try { if (File.Exists(tmpFile)) File.Delete(tmpFile); } catch { }
             }
             return pids;
         }
@@ -230,7 +228,7 @@ namespace MoviePilot_V3.Services
             catch (Exception ex)
             {
                 // 查询失败（如 WMI 服务不可用）时按无进程处理，调用方静默跳过
-                log("关机查询后端进程失败(WMI): " + ex.Message);
+                log.Warn("关机查询后端进程失败(WMI): " + ex.Message);
                 Debug.WriteLine("WMI 查询 Python 后端进程失败: " + ex.Message);
             }
 
@@ -248,10 +246,10 @@ namespace MoviePilot_V3.Services
                 }
                 else
                 {
-                    log("内存 PID " + launched + " 已失效（进程不存在或非 python.exe）");
+                    log.Info("内存 PID " + launched + " 已失效（进程不存在或非 python.exe）");
                 }
             }
-            log("关机查询后端进程: 系统 python.exe 共 " + pythonTotal + " 个, WMI 命中 " + wmiMatched + " 个, 内存 PID " + (launched > 0 ? launched.ToString() : "无") + ", 共 " + pids.Count + " 个候选");
+            log.Info("关机查询后端进程: 系统 python.exe 共 " + pythonTotal + " 个, WMI 命中 " + wmiMatched + " 个, 内存 PID " + (launched > 0 ? launched.ToString() : "无") + ", 共 " + pids.Count + " 个候选");
             return pids;
         }
 
@@ -288,7 +286,7 @@ namespace MoviePilot_V3.Services
         /// nginx/git/python 会在首次启动时自动下载，下载包位于 BASE_DIR\tmp）。
         public static void StartServices(Action<string> log)
         {
-            log("正在启动服务...");
+            log.Info("正在启动服务...");
 
             // 运行环境就绪检查（幂等：已安装时零下载）
             EnvironmentSetup.EnsureEnvironment(log);
@@ -301,12 +299,12 @@ namespace MoviePilot_V3.Services
                 string nginxConf = Path.Combine(AppConfig.NGINX_CONFIG_DIR, "nginx.conf");
                 int nginxPid = 0;
                 StartProcess(Path.Combine(AppConfig.NGINX_DIR, "nginx.exe"), "-c \"" + nginxConf + "\"", AppConfig.NGINX_DIR, envPath, onStarted: pid => nginxPid = pid);
-                log("Nginx 已启动 (PID " + nginxPid + ")");
+                log.Info("Nginx 已启动 (PID " + nginxPid + ")");
                 Thread.Sleep(500);
             }
             else
             {
-                log("Nginx 已在运行");
+                log.Info("Nginx 已在运行");
             }
 
             // 启动 Python 后端（入口优先级：main.py -> app.py；运行在虚拟环境中）
@@ -321,16 +319,16 @@ namespace MoviePilot_V3.Services
                         try
                         {
                             File.Delete(AppConfig.CurrentDownloadFlagFile);
-                            log("认证 / 站点资源更新完成，已清理 download.flag 标记");
+                            log.Info("认证 / 站点资源更新完成，已清理 download.flag 标记");
                         }
                         catch (Exception ex)
                         {
-                            log("清理 download.flag 标记失败: " + ex.Message);
+                            log.Warn("清理 download.flag 标记失败: " + ex.Message);
                         }
                     }
                     else
                     {
-                        log("警告: 认证 / 站点资源更新失败，已保留原有文件（download.flag 保留，下次启动重试）");
+                        log.Warn("认证 / 站点资源更新失败，已保留原有文件（download.flag 保留，下次启动重试）");
                     }
                 }
                 // 同步站点资源：升级包（config\temp\moviepilot-update\resources）附带 *.pyd / *.bin 时移动到站点资源目录
@@ -339,8 +337,8 @@ namespace MoviePilot_V3.Services
                 // 站点资源检查：缺失或不完整时后端无法启动，拒绝启动并提示
                 if (!EnvironmentSetup.SiteFilesReady())
                 {
-                    log("错误: 站点资源文件缺失或不完整（" + EnvironmentSetup.SitesPydFileName + " / user.sites.v3.bin），后端无法启动");
-                    log("请检查网络或 GitHub Token 后重启面板重试（配置窗口可填写 Token 与代理）");
+                    log.Error("站点资源文件缺失或不完整（" + EnvironmentSetup.SitesPydFileName + " / user.sites.v3.bin），后端无法启动");
+                    log.Error("请检查网络或 GitHub Token 后重启面板重试（配置窗口可填写 Token 与代理）");
                 }
                 else
                 {
@@ -361,29 +359,29 @@ namespace MoviePilot_V3.Services
                     {
                         string args = "\"" + entryFile + "\"" + (extraArgs != null ? " " + extraArgs : "");
                         // 注入 PORT 环境变量：后端监听端口与面板配置（nginx upstream）保持一致；
-                        // 同时注入代理环境变量（配置了代理时），后端网络请求与 git / curl / pip 走同一代理
+                        // 同时注入代理环境变量（配置了代理时），后端网络请求与 git / pip 走同一代理
                         int pythonPid = 0;
                         StartProcess(pythonExe, args, AppConfig.CurrentBackendDir, envPath, AppSettings.Current.BackendPort, true,
                             pid => { pythonPid = pid; RecordBackendPid(pid); });
                         // 打印 PID 供与任务管理器实际进程对比（venv launcher 启动真实解释器后自身会退出，
                         // 此处可能是 launcher 的 PID 而非最终运行的解释器 PID）
-                        log("Python 后端已启动: " + Path.GetFileName(entryFile) + (extraArgs != null ? " " + extraArgs : "") +
+                        log.Info("Python 后端已启动: " + Path.GetFileName(entryFile) + (extraArgs != null ? " " + extraArgs : "") +
                             (pythonExe.IndexOf(AppConfig.CurrentVenvDir, StringComparison.OrdinalIgnoreCase) >= 0 ? "（虚拟环境）" : "") +
                             " (PID " + pythonPid + ")");
                         Thread.Sleep(1000);
                     }
                     else
                     {
-                        log("警告: 未找到Python后端入口文件");
+                        log.Error("未找到Python后端入口文件");
                     }
                 }
             }
             else
             {
-                log("Python 后端已在运行");
+                log.Info("Python 后端已在运行");
             }
 
-            log("所有服务启动完成");
+            log.Info("所有服务启动完成");
         }
 
         /// 停止全部服务（nginx 用官方 -s quit；python 先查询后端进程 PID，再发送 Ctrl+Break
@@ -391,13 +389,13 @@ namespace MoviePilot_V3.Services
         /// 关机序列中启动 PowerShell 子进程报错弹窗）。
         public static void StopServices(Action<string> log, bool useWmi = false)
         {
-            log("正在停止服务...");
+            log.Info("正在停止服务...");
 
             RunTaskKill("nginx.exe", log, useWmi);
-            log("Nginx 已停止");
+            log.Info("Nginx 已停止");
 
             RunTaskKill("python.exe", log, useWmi);
-            log("Python 已停止");
+            log.Info("Python 已停止");
 
             // 清理 nginx 的 PID 文件（服务已退出，不残留状态记录）
             string nginxPid = GetPidFile("nginx");
@@ -405,7 +403,7 @@ namespace MoviePilot_V3.Services
             {
                 File.Delete(nginxPid);
             }
-            log("所有服务已停止");
+            log.Info("所有服务已停止");
 
             // 停止后备份可能被用户修改过的 category.yaml（内容不同才覆盖，防止官方模板被覆盖后修改丢失）
             UpgradeService.BackupCategoryYaml(log);
@@ -413,7 +411,7 @@ namespace MoviePilot_V3.Services
 
         /// 启动进程，并注入自定义 PATH 环境变量；port 非空时同时注入 PORT（MoviePilot 后端监听端口，
         /// 与 nginx upstream 对齐，环境变量优先于默认值 3001）；injectProxy 为 true 且配置了代理时
-        /// 注入代理环境变量（Python 后端专用，网络请求与 git / curl / pip 走同一代理）。
+        /// 注入代理环境变量（Python 后端专用，网络请求与 git / pip 走同一代理）。
         private static void StartProcess(string fileName, string arguments, string workingDir, string envPath, int? port = null, bool injectProxy = false, Action<int> onStarted = null)
         {
             ProcessStartInfo psi = new ProcessStartInfo
@@ -444,10 +442,11 @@ namespace MoviePilot_V3.Services
             }
         }
 
-        /// 注入代理环境变量（仅当面板配置了 http / socks5 代理时）：
+        /// 注入代理环境变量（仅当面板配置了系统代理 / 手动 http 代理时，BuildProxyUrl 非 null）：
         /// Python 后端的网络库（requests / httpx 等）读取 HTTP_PROXY / HTTPS_PROXY / ALL_PROXY，
         /// 大小写同时注入以兼容不同库；NO_PROXY 排除本机回环与常规局域网网段（CIDR 写法，
         /// requests / httpx 等主流库均支持），避免后端访问局域网 IP / 本机服务时误走代理导致不通。
+        /// git 不使用系统代理：面板执行的 git 命令由 ApplyGitProxy 写入 git 全局配置（见 UpgradeService.EnsureGitReady）。
         private static void InjectProxyEnvironment(ProcessStartInfo psi)
         {
             string proxyUrl = EnvironmentSetup.BuildProxyUrl();
@@ -510,7 +509,7 @@ namespace MoviePilot_V3.Services
                     catch (Exception ex)
                     {
                         // nginx 停止失败不中断后续服务停止（关机场景尤其要保证 python 后端能优雅退出）
-                        log("停止 Nginx 失败: " + ex.Message);
+                        log.Warn("停止 Nginx 失败: " + ex.Message);
                     }
                 }
                 return;
@@ -522,10 +521,10 @@ namespace MoviePilot_V3.Services
             List<int> pids = useWmi ? GetBackendPythonPidsWmi(log) : GetBackendPythonPids();
             if (pids.Count == 0)
             {
-                log("未查询到后端进程，跳过优雅停止（进程将随系统关机强制结束）");
+                log.Info("未查询到后端进程，跳过优雅停止（进程将随系统关机强制结束）");
                 return;
             }
-            log("停止后端: 候选进程 " + pids.Count + " 个 (PID " + string.Join(",", pids) + ")");
+            log.Info("停止后端: 候选进程 " + pids.Count + " 个 (PID " + string.Join(",", pids) + ")");
 
             Process p = null;
             try
@@ -547,7 +546,7 @@ namespace MoviePilot_V3.Services
                 bool graceful = false;
                 if (AttachConsole((uint)p.Id))
                 {
-                    log("停止后端: 已附加控制台 (PID " + p.Id + ")");
+                    log.Info("停止后端: 已附加控制台 (PID " + p.Id + ")");
                     // 注册 Ctrl 处理程序（返回 true 表示已处理），防止面板自身被 Ctrl+Break 默认终止
                     SetConsoleCtrlHandler(ConsoleCtrlHandlerProc, true);
 
@@ -566,17 +565,24 @@ namespace MoviePilot_V3.Services
                     // 等待信号分发完全结束再注销处理程序
                     Thread.Sleep(500);
                     SetConsoleCtrlHandler(ConsoleCtrlHandlerProc, false);
-                    log(graceful ? "停止后端: Ctrl+Break 后优雅退出完成" : "停止后端: 两次信号后仍未退出，转强制结束");
+                    if (graceful)
+                    {
+                        log.Info("停止后端: Ctrl+Break 后优雅退出完成");
+                    }
+                    else
+                    {
+                        log.Warn("停止后端: 两次信号后仍未退出，转强制结束");
+                    }
                 }
                 else
                 {
-                    log("停止后端: 附加控制台失败 (错误码 " + Marshal.GetLastWin32Error() + ")，转强制结束");
+                    log.Warn("停止后端: 附加控制台失败 (错误码 " + Marshal.GetLastWin32Error() + ")，转强制结束");
                 }
 
                 if (!graceful)
                 {
                     // 无控制台（如 pythonw.exe）或两轮宽限期后仍未退出：强制结束
-                    log("优雅退出超时，强制结束 " + imageName);
+                    log.Warn("优雅退出超时，强制结束 " + imageName);
                     p.Kill();
                     p.WaitForExit(3000);
                 }

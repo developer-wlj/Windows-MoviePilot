@@ -50,7 +50,7 @@ namespace MoviePilot_V3
         public bool AutoUpdateOnStart { get; set; } = false;
         // 启动时自动启动 Nginx 和 Python（默认关闭）
         public bool AutoStartServices { get; set; } = false;
-        // 打印 Debug 日志（uv / pip / curl / git 等子进程命令输出），默认关闭；
+        // 打印 Debug 日志（uv / pip / git 等子进程命令输出），默认关闭；
         // 关闭时面板只显示 INFO / ERROR 级别的主流程日志
         public bool DebugLog { get; set; } = false;
         // 阻止 Windows 空闲休眠/睡眠（面板运行期间生效，退出面板时自动恢复），默认关闭
@@ -58,8 +58,9 @@ namespace MoviePilot_V3
 
         // GitHub Token（下载 GitHub 资源文件时携带 Authorization 请求头，为空则不携带）
         public string GitHubToken { get; set; } = "";
-        // 代理类型："" 关闭 / "http" / "socks5"；配置后应用到 git 全局代理与所有下载
-        public string ProxyType { get; set; } = "";
+        // 代理类型："" 关闭 / "system" 使用 Windows 系统代理（默认）/ "http" 手动 http 代理；
+        // 配置后应用到 git 全局代理与所有网络请求（下载已程序集化，无需外部 curl）
+        public string ProxyType { get; set; } = "system";
         // 代理地址（如 127.0.0.1）
         public string ProxyHost { get; set; } = "";
         // 代理端口
@@ -195,7 +196,20 @@ namespace MoviePilot_V3
                                 break;
                             case "proxy_type":
                                 string pt = value.ToLowerInvariant();
-                                s.ProxyType = (pt == "http" || pt == "socks5") ? pt : "";
+                                // 旧配置兼容：socks5 类型已移除，迁移为手动 http 代理（沿用地址/端口）；
+                                // 空值尊重用户此前显式选择的"关闭"
+                                if (pt == "system" || pt == "http")
+                                {
+                                    s.ProxyType = pt;
+                                }
+                                else if (pt == "socks5")
+                                {
+                                    s.ProxyType = "http";
+                                }
+                                else
+                                {
+                                    s.ProxyType = "";
+                                }
                                 break;
                             case "proxy_host":
                                 s.ProxyHost = value;

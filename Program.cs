@@ -33,12 +33,12 @@ namespace MoviePilot_V3
                     }
                     else
                     {
-                        SendLinesToPanel("缺少命令参数，用法: MoviePilot-V3 -c <start|stop|restart|update>");
+                        SendLinesToPanel("[ERROR] 缺少命令参数，用法: MoviePilot-V3 -c <start|stop|restart|update>");
                     }
                     return;
                 }
                 // 未知参数：提示后退出，不启动面板
-                SendLinesToPanel("未知参数: " + args[0] + "（支持: -c start / stop / restart / update）");
+                SendLinesToPanel("[ERROR] 未知参数: " + args[0] + "（支持: -c start / stop / restart / update）");
                 return;
             }
 
@@ -153,7 +153,11 @@ namespace MoviePilot_V3
                         // 特例：app.env 中 MOVIEPILOT_AUTO_UPDATE 为 dev/release 时，执行启动检查更新并启动
                         if (IsAutoUpdateEnabled())
                         {
-                            UpgradeService.Upgrade(log, (success, message) => log(message));
+                            UpgradeService.Upgrade(log, (success, message) =>
+                            {
+                                if (success) { log.Info(message); }
+                                else { log.Error(message); }
+                            });
                             break;
                         }
                         // 与面板"重启服务"一致：先确保环境就绪，再停止服务，最后启动服务（纯重启，不检查更新）
@@ -163,16 +167,20 @@ namespace MoviePilot_V3
                         break;
                     case "update":
                         // 与面板"检查MP更新"确认后的升级流程一致：升级流程内部自行停止服务、更新代码、安装依赖并重启服务
-                        UpgradeService.Upgrade(log, (success, message) => log(message));
+                        UpgradeService.Upgrade(log, (success, message) =>
+                        {
+                            if (success) { log.Info(message); }
+                            else { log.Error(message); }
+                        });
                         break;
                     default:
-                        log("未知命令: " + command + "（支持: start / stop / restart / update）");
+                        log.Warn("未知命令: " + command + "（支持: start / stop / restart / update）");
                         break;
                 }
             }
             catch (Exception ex)
             {
-                log("执行失败: " + ex.Message);
+                log.Error("执行失败: " + ex.Message);
             }
             finally
             {

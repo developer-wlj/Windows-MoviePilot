@@ -6,7 +6,7 @@
 
 - Windows 10 / 11 64 位（已在 Windows 24H2 验证）
 - 必须安装 **.NET Framework 4.8 运行时**（本程序基于 4.8 构建，缺省会无法启动）
-- **低于 Windows Server 2019**（以及 Windows 10 1803 之前的版本）未内置 curl 与 tar，需按下方「系统组件 curl 与 tar」手动部署后再使用
+- **低于 Windows Server 2019**（及 Windows 10 1803 之前的版本）未内置 tar（bsdtar），面板会**自动下载部署**便携版bsdtar
 
 ### 检测是否已安装 .NET Framework 4.8
 
@@ -29,36 +29,6 @@ reg query "HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" /v Release
 未安装时请到微软官网下载：
 
 > https://dotnet.microsoft.com/zh-cn/download/dotnet-framework/net48
-
-### 系统组件 curl（下载）与 tar（解压）
-
-MoviePilot-V3 运行时调用系统 **curl** 作为下载后端（下载便携版 nginx / Git / Python / uv、前端与站点资源、面板更新等），调用系统 **tar**（即 libarchive 的 bsdtar）作为解压后端（解压 zip 与 tar.gz 压缩包）。两者是微软在 **Windows 10 1803**（2018 年 4 月更新，内部版本 17134）起一同随系统内置的组件（位于 `C:\Windows\System32\`），绝大多数系统无需任何处理；**凡低于 Windows 10 1803（内部版本 < 17134）或低于 Windows Server 2019（内部版本 < 17763）的系统（如 Windows 10 1709 及更早、Windows Server 2016），两个组件均未内置，需手动安装**（部署方法见下方对照表与说明）：
-
-| 系统版本 | curl / tar 内置情况 |
-| --- | --- |
-| Windows 10 1803 及以上（内部版本 ≥ 17134） | 已内置（`C:\Windows\System32\curl.exe` / `tar.exe`），无需处理 |
-| Windows 10 1709 及更早（1507 ~ 1709） | 未内置，需手动部署 |
-| Windows Server 2019 及以上（内部版本 ≥ 17763） | 已内置（`C:\Windows\System32\curl.exe` / `tar.exe`），无需处理 |
-| Windows Server 2016（内部版本 14393） | 未内置，需手动部署 |
-
-> 查看本机系统版本：`Win` + `R` 运行 `winver`，或 PowerShell 执行 `(Get-CimInstance Win32_OperatingSystem).Version`（返回如 `10.0.17763`）。
-
-**curl（下载）**：
-
-1. 从 <https://curl.se/windows/> 获取适用于 **x64** 的二进制发行包
-2. 解压后将其 **`bin` 子目录**（含 `curl.exe`）注册至**系统全局 PATH** 环境变量（或直接把 `curl.exe` 复制到 `C:\Windows\System32\`）
-3. **配置 CA 证书（必须）**：curl.se 官方构建基于 OpenSSL，未内置系统证书信任链，访问 https（GitHub 等）会报证书错误；发行包 **`bin` 子目录内已自带** `curl-ca-bundle.crt` 证书（与 `curl.exe` 同目录），**无需另行下载**。然后新增**系统环境变量** `CURL_CA_BUNDLE`，值设为该证书文件的完整路径（如 `C:\Windows\System32\curl-ca-bundle.crt`）
-4. 变更环境变量后，请**重新启动 MoviePilot-V3**（面板），确保新路径与环境变量被正确加载（后续启动的服务同样继承该 PATH 与环境变量）
-
-> 面板**优先**调用系统内置 `curl.exe`（基于 Windows 原生证书存储，**无需**设置 CURL_CA_BUNDLE），找不到时才回退按 `PATH` 查找手动部署的 curl；两者均无时，下载操作会提示「未找到 curl.exe（系统内置与 PATH 均无），无法下载」。
-
-**tar（解压）**：
-
-1. 从 <https://github.com/li-ruijie/libarchive/releases> 获取 **Windows** 二进制包（内含 `bsdtar.exe`） 选择*-windows-msvc-x64-static.zip或*-windows-mingw-x64-static.zip都可以
-2. 将 `bsdtar.exe` **重命名为 `tar.exe`**
-3. 复制到 `C:\Windows\System32\`（**必须放在该固定目录**：面板只在此路径查找 tar，不按 PATH 查找）
-
-> 缺少 tar 时，首次环境准备的解压操作会提示「未找到系统 tar.exe，无法解压」。部署完成后可开新命令窗口执行 `curl --version` 与 `tar --version` 验证；再执行 `curl -I https://github.com` 确认证书配置正常（不再报 `SSL certificate problem`）即全部就绪。
 
 ### 其他说明
 
@@ -102,9 +72,9 @@ Debug 构建将 `Configuration` 改为 `Debug`，产物输出到 `bin\` 目录�
 | `nginx_port` | `3000` | 前端访问端口（浏览器访问地址） | **保存即生效**：nginx 运行中自动重载；未运行时下次启动生效 |
 | `backend_port` | `3001` | Python 后端 API 端口（nginx 反代目标） | nginx 侧**保存即生效**；**后端需重启服务**才能更换监听端口 |
 | `github_token` | （空） | GitHub Token：下载站点资源、访问 GitHub 时携带认证头，可提高请求限额 | **保存即生效**（下次下载时使用） |
-| `proxy_type` | （空） | 代理类型：`http` / `socks5`，空为关闭 | **保存即生效**：立即写入 git 全局代理（`git config --global http.proxy`），程序内所有下载（curl）同时走代理 |
-| `proxy_host` | （空） | 代理 IP 或域名，**只填地址、不要带协议头**，如 `127.0.0.1` | **保存即生效**（同上） |
-| `proxy_port` | `0` | 代理端口，如 `10829`（**无用户名 / 密码**，不支持认证型代理） | **保存即生效**（同上） |
+| `proxy_type` | `system` | 代理类型：`system`（默认，自动跟随 Windows 系统代理）/ `http`（手动，需填地址端口）/ 空为关闭（socks5 已移除） | **保存即生效**：立即写入 git 全局代理（`git config --global http.proxy`），程序内所有下载同时走代理 |
+| `proxy_host` | （空） | 手动 http 代理的 IP 或域名，**只填地址、不要带协议头**，如 `127.0.0.1`（仅 `proxy_type=http` 时使用） | **保存即生效**（同上） |
+| `proxy_port` | `0` | 手动 http 代理端口，如 `10809`（**无用户名 / 密码**，不支持认证型代理；仅 `proxy_type=http` 时使用） | **保存即生效**（同上） |
 | `shutdown_timeout_sec` | `30` | 停止服务时等待后端优雅退出的秒数，超时强制结束（插件较多时可调大，判断方法见下文「优雅退出」） | **保存即生效**（下次停止服务时使用） |
 | `status_monitor_sec` | `5` | 面板服务状态检测间隔（秒，3~600），检测 nginx / Python 进程是否存活（方式见下文「状态监控」） | **需重启面板** |
 | `start_minimized_to_tray` | `False` | 启动面板时直接驻留系统托盘（不显示主窗口） | **需重启面板** |
@@ -112,7 +82,7 @@ Debug 构建将 `Configuration` 改为 `Debug`，产物输出到 `bin\` 目录�
 | `force_update_resources` | `True` | 更新时（「立即升级版本」/「代码冲突时点我」）强制更新前端资源与后端认证 / 站点资源：即使版本号相同也重新下载覆盖（官方可能对同一版本号重新发布不同内容，详见下文「资源强制更新」） | 下次「立即升级版本」/「代码冲突时点我」时生效 |
 | `auto_start_services` | `False` | 面板启动时自动启动 nginx / Python 服务 | **需重启面板** |
 | `run_version` | `MoviePilot-V3` | 运行版本：标准版 `MoviePilot-V3`（默认）/ freethreaded 版 `MoviePilot-V3-T`（Python 免费线程版，详见下文「运行版本」） | **保存即生效**（下次启动服务时使用） |
-| `debug_log` | `False` | 调试日志：开启后显示 uv / pip / curl / git 等子进程命令输出的 DEBUG 日志（默认仅显示 INFO / ERROR 主流程日志） | **保存即生效** |
+| `debug_log` | `False` | 调试日志：开启后显示 uv / pip / git 等子进程命令输出的 DEBUG 日志（默认仅显示 INFO / ERROR 主流程日志） | **保存即生效** |
 | `prevent_sleep` | `False` | 阻止 Windows 空闲休眠 / 睡眠（面板运行期间生效，退出面板时自动恢复） | **保存即生效** |
 
 > 说明：`nginx_port` / `backend_port` 修改保存时，面板会更新 nginx 配置模板、同步到 nginx 实际加载的 conf\ 目录并自动重载生效（nginx 未运行时下次启动生效）。
@@ -169,10 +139,15 @@ Debug 构建将 `Configuration` 改为 `Debug`，产物输出到 `bin\` 目录�
 
 ### 代理（proxy_type / proxy_host / proxy_port）
 
-- `proxy_host` 只填写 IP 或域名，**不要写协议头**（不要填 `http://127.0.0.1`，直接填 `127.0.0.1`）
-- 只需填写地址与端口两项即可，**无用户名 / 密码**（认证型代理无法使用）
-- 保存后立即写入 git 全局代理并作用于所有下载；本地代理工具（Clash、v2rayN 等）直接填其监听地址与端口即可
-- **Python 后端的代理注入**：配置代理后启动后端时，会向后端进程注入 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` 环境变量（大小写同时注入），requests / httpx 等网络库自动走代理；同时注入 `NO_PROXY` **排除常规局域网地址**：本机回环（localhost、127.0.0.1、::1）与私有网段（10.0.0.0/8、172.16.0.0/12、192.168.0.0/16）及链路本地（169.254.0.0/16），保证后端访问本机与局域网内服务时不会被代理劫持
+- 配置窗口「代理类型」三选一：
+  - **系统代理（默认，`proxy_type=system`）**：自动跟随 Windows 系统代理设置（设置 → 网络和 Internet → 代理）。代理软件（Clash、v2rayN 等）开启「系统代理」后，面板下载、git、后端请求自动全部走代理，**无需在面板填写任何地址**；代理软件切换端口 / 退出后同样自动跟随，无需改动面板配置
+  - **http（`proxy_type=http`）**：手动填写 `proxy_host` / `proxy_port`；只填 IP 或域名，**不要写协议头**（不要填 `http://127.0.0.1`，直接填 `127.0.0.1`）；**无用户名 / 密码**（认证型代理无法使用）
+  - **关闭（`proxy_type` 留空）**：全部请求直连
+- 旧版 `socks5` 配置自动迁移为手动 http 代理（沿用地址 / 端口）；原代理只支持 socks5 时，请改用支持 http 或系统代理的代理软件
+- **系统代理识别范围**：读取 Windows「Internet 设置」中的静态代理（支持 `host:port` 与 `http=...;https=...` 多协议写法，按目标协议取对应条目）；仅配置了 socks 条目时 HTTP 客户端无法使用。配置了 PAC 脚本且未启用静态代理时按 PAC 解析：HTTP 下载按实际目标 URL 解析；git / 后端环境变量注入等**无目标 URL** 的场景，以 GitHub 为探测目标解析出一个固定代理使用（PAC 放行 GitHub 则 git 等全部走该代理；PAC 对 GitHub 返回直连则保持直连），故纯 PAC 模式下 git 同样能走代理
+- **不要使用 PAC 代理**：PAC 默认规则下，可能把 **nginx.org 等未命中代理规则的域名（或其解析出的 IP）判为直连**；直连流量不经过代理软件，v2rayN 等代理面板**观察不到**这类连接、无法确认是否被代理，若该域名直连不通会导致下载失败。请在代理软件中改用**自动配置系统代理模式**：该模式下所有连接统一经代理软件转发，v2rayN 等代理面板可直观看到每个连接是被代理还是放行直连，便于确认与排查
+- **git 的代理**：git 本身不读取 Windows 系统代理，面板**每次使用 git 前**（环境准备 / 检查更新 / 升级 / 保存配置后）把当前代理写入 git 全局配置（`git config --global http.proxy`），关闭或未配置代理时自动清空——系统代理切换后 git 也自动跟随，无需手工操作
+- **Python 后端的代理注入**：启动后端时按当前代理向后端进程注入 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` 环境变量（大小写同时注入），requests / httpx 等网络库自动走代理；同时注入 `NO_PROXY` **排除常规局域网地址**：本机回环（localhost、127.0.0.1、::1）与私有网段（10.0.0.0/8、172.16.0.0/12、192.168.0.0/16）及链路本地（169.254.0.0/16），保证后端访问本机与局域网内服务时不会被代理劫持
 
 ## 命令行用法
 
@@ -217,7 +192,7 @@ MoviePilot-V3.exe -c update   # 升级版本（与配置窗口「立即升级版
 
 ### 资源强制更新（force_update_resources）
 
-「立即升级版本」与「代码冲突时点我（源码运行）」完成后会同步资源，配置窗口「更新时强制更新前端资源和后端认证和站点资源」（默认勾选，对应 `force_update_resources=True`）控制是否**强制覆盖**：
+更新时强制更新前端资源和后端认证和站点资源（默认勾选，对应 `force_update_resources=True`）控制是否**强制覆盖**：
 
 - **前端资源**（`mp-web\`，各版本共用）：默认按后端 `version.py` 的 `FRONTEND_VERSION` 与 `mp-web\version.txt` 对比，**版本更高才下载覆盖**。注意：官方前端存在**版本号相同、资源内容不同**的情况——同一版本号的发行包可能被重新发布（内容修正 / 重新打包），仅按版本号比较会漏更；勾选后即使版本号相同也会重新下载覆盖，保证拿到最新内容；本地版本高于要求时（自行替换过更高版本前端）不覆盖
 - **认证资源**（`sites.cp314-win_amd64.pyd` / `sites.cp314t-win_amd64.pyd`，位于 `server\<运行版本>\app\application\site`，按运行版本区分）：勾选后强制重新下载覆盖

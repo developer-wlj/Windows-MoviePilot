@@ -124,12 +124,12 @@ namespace MoviePilot_V3
                         "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "] " + msg + Environment.NewLine);
                 }
                 catch { }
-                Log(msg);
+                ServiceLog(msg);
             };
             Task.Run(() =>
             {
                 // 关机/重启清理：WMI 进程内查询替代 PowerShell，避免关机序列中启动子进程报错弹窗
-                try { ServiceManager.StopServices(shutdownLog, useWmi: true); } catch (Exception ex) { shutdownLog("关机停止服务异常: " + ex.Message); }
+                try { ServiceManager.StopServices(shutdownLog, useWmi: true); } catch (Exception ex) { shutdownLog.Error("关机停止服务异常: " + ex.Message); }
                 try { EnvironmentSetup.KillActiveProcesses(); } catch { }
                 try { SetSleepPrevention(false); } catch { }
                 try { ShutdownBlockReasonDestroy(Handle); } catch { }
@@ -342,11 +342,11 @@ namespace MoviePilot_V3
                 {
                     if (autoUpdate)
                     {
-                        UpgradeService.CheckUpdateOnStart(Log);
+                        UpgradeService.CheckUpdateOnStart(ServiceLog);
                     }
                     if (autoStart)
                     {
-                        ServiceManager.StartServices(Log);
+                        ServiceManager.StartServices(ServiceLog);
                     }
                 });
             }
@@ -370,7 +370,7 @@ namespace MoviePilot_V3
         /// 检测两项（独立并行）：① 面板仓库 GitHub Release 新版本 → 右上角"面板有vX新版本"；
         /// ② 当前运行版本 MP 的官方新标签 → 右上角"MP有新版本"。
         /// 线程与子进程管理：检测任务跑在线程池后台线程（进程退出自动结束），期间启动的
-        /// curl / git 子进程注册到活动进程表，面板退出 / 关机时由 KillActiveProcesses 统一终止，
+        /// git 等子进程注册到活动进程表，面板退出 / 关机时由 KillActiveProcesses 统一终止，
         /// 不会在应用退出后遗留运行。
         private void StartUpdateTipsCheck()
         {
@@ -398,8 +398,8 @@ namespace MoviePilot_V3
         /// 完成后在 UI 线程更新右上角提示（窗口可能隐藏/已销毁，均需容错）。
         private void CheckUpdateTips()
         {
-            Task<string> tPanel = Task.Run(() => PanelUpdateService.FetchLatestTag(Log));
-            Task<bool> tMp = Task.Run(() => UpgradeService.HasNewMpVersion(Log));
+            Task<string> tPanel = Task.Run(() => PanelUpdateService.FetchLatestTag(ServiceLog));
+            Task<bool> tMp = Task.Run(() => UpgradeService.HasNewMpVersion(ServiceLog));
             try { Task.WaitAll(tPanel, tMp); } catch { } // 任一项异常不影响另一项结果（下方按 IsFaulted 取值）
             if (IsDisposed) return;
             string tag = tPanel.IsFaulted ? null : tPanel.Result;
@@ -507,7 +507,7 @@ namespace MoviePilot_V3
 
         /// 后台执行面板自更新：下载（支持 GitHub Token / 代理）→ 校验 exe → 改名旧 exe 为
         /// MoviePilot-V3-old.exe → 新 exe 移入运行目录 → 启动新版并退出当前进程。
-        /// 下载 curl 注册活动进程表：中途退出面板会被 KillActiveProcesses 终止，不遗留；
+        /// 下载为程序集内完成，不产生子进程；中途退出面板不会遗留运行。
         /// 任何失败自动回滚并恢复界面（成功后进程已退出，无需恢复）。
         private void RunPanelSelfUpdate(string tag)
         {
@@ -519,14 +519,14 @@ namespace MoviePilot_V3
                 try
                 {
                     Log("开始更新面板到 " + tag + " ...");
-                    string downloaded = PanelUpdateService.DownloadAsset(tag, Log);
+                    string downloaded = PanelUpdateService.DownloadAsset(tag, ServiceLog);
                     if (downloaded == null)
                     {
                         LogError("面板更新失败：新版 exe 下载未完成");
                         NotifyPanelUpdateError("面板新版本下载失败，请检查网络 / 代理 / GitHub Token 后重试。");
                         return;
                     }
-                    string error = PanelUpdateService.InstallUpdate(downloaded, Log);
+                    string error = PanelUpdateService.InstallUpdate(downloaded, ServiceLog);
                     if (error != null)
                     {
                         LogError("面板更新失败: " + error);
@@ -543,7 +543,7 @@ namespace MoviePilot_V3
                     {
                         LogError("启动新版面板失败: " + ex.Message);
                     }
-                    // 退出前终止仍在运行的检测子进程（curl / git 等已注册活动进程表），
+                    // 退出前终止仍在运行的检测 / 解压子进程（git / tar 等已注册活动进程表），
                     // 避免面板重启后遗留后台命令；新启动的面板进程未注册，不受影响
                     EnvironmentSetup.KillActiveProcesses();
                     // 立即退出本进程（不停止 MoviePilot 服务：它们是独立进程，新版面板会自动接管状态监控）
@@ -595,8 +595,8 @@ namespace MoviePilot_V3
             }
             else
             {
-                // 退出放行前：终止面板启动的下载/命令子进程（curl/tar/git/pip），
-                // 防止下载等长任务在面板退出后遗留运行
+                // 退出放行前：终止面板启动的解压/命令子进程（tar/git/pip），
+                // 防止长任务在面板退出后遗留运行
                 EnvironmentSetup.KillActiveProcesses();
                 // 退出前恢复系统自动睡眠/休眠（若配置了阻止）
                 SetSleepPrevention(false);
@@ -615,7 +615,32 @@ namespace MoviePilot_V3
             AppendLog("[ERROR] " + msg);
         }
 
-        /// DEBUG 级别：仅配置“打印Debug日志”开启时输出（uv / pip / curl / git 等子进程命令输出），
+        /// WARN 级别：可恢复异常 / 自动重试 / 跳过等需要留意的信息。
+        public void LogWarn(string msg)
+        {
+            AppendLog("[WARN] " + msg);
+        }
+
+        /// 服务层委托日志入口（方法组可直接作为 Action&lt;string&gt; 传给 Services 层）：
+        /// Services 层经 LogExtensions 写入的 [ERROR] / [WARN] 级别前缀在此剥离，分发到
+        /// 对应 UI 级别（[ERROR] / [WARN]）显示；其余按 INFO 显示（前缀约定见 Services\LogExtensions.cs）。
+        public void ServiceLog(string msg)
+        {
+            if (msg.StartsWith("[ERROR] ", StringComparison.Ordinal))
+            {
+                LogError(msg.Substring("[ERROR] ".Length));
+            }
+            else if (msg.StartsWith("[WARN] ", StringComparison.Ordinal))
+            {
+                LogWarn(msg.Substring("[WARN] ".Length));
+            }
+            else
+            {
+                Log(msg);
+            }
+        }
+
+        /// DEBUG 级别：仅配置“打印Debug日志”开启时输出（uv / pip / git 等子进程命令输出），
         /// 关闭时直接丢弃，不占用日志区。
         public void LogDebug(string msg)
         {
@@ -626,7 +651,7 @@ namespace MoviePilot_V3
             AppendLog("[DEBUG] " + msg);
         }
 
-        /// DEBUG 级别静态入口：Services 层子进程（uv / pip / curl / git）输出逐行转发，
+        /// DEBUG 级别静态入口：Services 层子进程（uv / pip / git）输出逐行转发，
         /// 未开启 Debug 日志时静默丢弃（面板单例未创建时同样丢弃）。
         public static void Debug(string msg)
         {
@@ -764,7 +789,7 @@ namespace MoviePilot_V3
                             string line;
                             while ((line = reader.ReadLine()) != null)
                             {
-                                Log(line);
+                                ServiceLog(line);
                             }
                         }
                     }
@@ -785,7 +810,7 @@ namespace MoviePilot_V3
             {
                 if (t.IsFaulted)
                 {
-                    Log("错误: " + (t.Exception != null ? t.Exception.GetBaseException().Message : "未知异常"));
+                    LogError(t.Exception != null ? t.Exception.GetBaseException().Message : "未知异常");
                 }
                 if (!IsDisposed)
                 {
@@ -816,7 +841,7 @@ namespace MoviePilot_V3
                 bool hasNew;
                 try
                 {
-                    hasNew = UpgradeService.CheckNewMpVersion(Log);
+                    hasNew = UpgradeService.CheckNewMpVersion(ServiceLog);
                 }
                 catch (Exception ex)
                 {
@@ -860,7 +885,7 @@ namespace MoviePilot_V3
             {
                 try
                 {
-                    UpgradeService.Upgrade(Log, (success, message) =>
+                    UpgradeService.Upgrade(ServiceLog, (success, message) =>
                     {
                         if (IsDisposed) return;
                         if (success) Log("升级成功: " + message);
@@ -911,7 +936,7 @@ namespace MoviePilot_V3
             {
                 try
                 {
-                    UpgradeService.FixCodeConflict(Log, (success, message) =>
+                    UpgradeService.FixCodeConflict(ServiceLog, (success, message) =>
                     {
                         if (IsDisposed) return;
                         if (success) Log("运行环境修复成功: " + message);
@@ -1018,7 +1043,7 @@ namespace MoviePilot_V3
             }
             catch (Exception ex)
             {
-                Log("打开站点失败: " + ex.Message);
+                LogError("打开站点失败: " + ex.Message);
             }
         }
 
@@ -1032,7 +1057,7 @@ namespace MoviePilot_V3
             }
             else
             {
-                Log("目录不存在: " + dir);
+                LogWarn("目录不存在: " + dir);
             }
         }
 
@@ -1089,7 +1114,7 @@ namespace MoviePilot_V3
             // 立即隐藏窗口并提示，避免停止服务（优雅退出最长可达数十秒）期间界面停留无反馈
             Hide();
             notifyIcon.ShowBalloonTip(1000, AppConfig.APP_NAME, "正在停止服务并退出...", ToolTipIcon.Info);
-            Task.Run(() => ServiceManager.StopServices(Log)).ContinueWith(t =>
+            Task.Run(() => ServiceManager.StopServices(ServiceLog)).ContinueWith(t =>
             {
                 if (IsDisposed) return;
                 BeginInvoke(new Action(() =>
@@ -1103,9 +1128,9 @@ namespace MoviePilot_V3
 
         // ---------- 按钮事件 ----------
 
-        private void BtnStart_Click(object sender, EventArgs e) => RunTask(() => ServiceManager.StartServices(Log));
+        private void BtnStart_Click(object sender, EventArgs e) => RunTask(() => ServiceManager.StartServices(ServiceLog));
 
-        private void BtnStop_Click(object sender, EventArgs e) => RunTask(() => ServiceManager.StopServices(Log));
+        private void BtnStop_Click(object sender, EventArgs e) => RunTask(() => ServiceManager.StopServices(ServiceLog));
 
         private void BtnRestart_Click(object sender, EventArgs e) => RestartServices();
 
@@ -1121,9 +1146,9 @@ namespace MoviePilot_V3
             }
             RunTask(() =>
             {
-                EnvironmentSetup.EnsureEnvironment(Log);
-                ServiceManager.StopServices(Log);
-                ServiceManager.StartServices(Log);
+                EnvironmentSetup.EnsureEnvironment(ServiceLog);
+                ServiceManager.StopServices(ServiceLog);
+                ServiceManager.StartServices(ServiceLog);
             });
         }
 
@@ -1187,7 +1212,7 @@ namespace MoviePilot_V3
             // 后台串行执行：先应用/清空 git 全局代理（代理配置变更时），端口变化时同步 nginx 端口
             RunTask(() =>
             {
-                EnvironmentSetup.ApplyGitProxy(Log);
+                EnvironmentSetup.ApplyGitProxy(ServiceLog);
                 if (!portChanged)
                 {
                     return;

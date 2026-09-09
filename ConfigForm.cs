@@ -199,11 +199,11 @@ namespace MoviePilot_V3
                 Location = new Point(20, 380)
             };
 
-            // 打印 Debug 日志：勾选后 uv / pip / curl / git 等子进程命令输出以 DEBUG 级别
+            // 打印 Debug 日志：勾选后 uv / pip / git 等子进程命令输出以 DEBUG 级别
             // 实时显示到面板日志（未勾选时只显示 INFO / ERROR 级别的主流程日志）
             chkDebugLog = new CheckBox
             {
-                Text = "打印Debug日志（显示 uv / pip / curl / git 命令输出）",
+                Text = "打印Debug日志（显示 uv / pip / git 命令输出）",
                 AutoSize = true,
                 ForeColor = fg,
                 Location = new Point(20, 410)
@@ -226,7 +226,8 @@ namespace MoviePilot_V3
                 BorderStyle = BorderStyle.FixedSingle
             };
 
-            // 代理类型（关闭 / http / socks5）
+            // 代理类型（系统代理 / http / 关闭）：socks5 已移除，统一走 Windows 系统代理或手动 http 代理；
+            // 系统代理模式不需要填写地址/端口（读取系统 Internet 设置，自动随代理软件切换）
             Label lblProxyType = new Label
             {
                 Text = "代理类型",
@@ -240,7 +241,9 @@ namespace MoviePilot_V3
                 Width = 100,
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
-            cmbProxyType.Items.AddRange(new object[] { "关闭", "http", "socks5" });
+            cmbProxyType.Items.AddRange(new object[] { "系统代理", "http", "关闭" });
+            // 类型切换时联动地址/端口可用性：仅手动 http 需要填写，系统代理/关闭时置灰
+            cmbProxyType.SelectedIndexChanged += (s, e) => UpdateProxyControls();
 
             // 代理地址
             Label lblProxyHost = new Label
@@ -438,9 +441,19 @@ namespace MoviePilot_V3
             chkAutoStart.Checked = s.AutoStartServices;
             chkTrayStart.Checked = s.StartMinimizedToTray;
             txtToken.Text = s.GitHubToken;
-            cmbProxyType.SelectedIndex = s.ProxyType == "http" ? 1 : (s.ProxyType == "socks5" ? 2 : 0);
+            // 下拉顺序：0=系统代理 / 1=http / 2=关闭；空值（显式关闭）选最后一项
+            cmbProxyType.SelectedIndex = s.ProxyType == "system" ? 0 : (s.ProxyType == "http" ? 1 : 2);
             txtProxyHost.Text = s.ProxyHost;
             numProxyPort.Value = Clamp(s.ProxyPort, (int)numProxyPort.Minimum, (int)numProxyPort.Maximum);
+            UpdateProxyControls();
+        }
+
+        /// 代理类型不是手动 http 时禁用地址/端口输入（系统代理读系统设置，关闭时无需填写）。
+        private void UpdateProxyControls()
+        {
+            bool manual = cmbProxyType != null && cmbProxyType.SelectedIndex == 1;
+            txtProxyHost.Enabled = manual;
+            numProxyPort.Enabled = manual;
         }
 
         private static decimal Clamp(int value, int min, int max)
@@ -528,15 +541,15 @@ namespace MoviePilot_V3
                 // 本次保存的目标运行版本：先取下拉框选择值，供切换 T 版前的环境预检与写回配置共用
                 string selectedVersion = (string)cmbRunVersion.SelectedItem;
 
-                // 代理完整性校验：选了类型但地址/端口不完整或格式错误时提示，
+                // 代理完整性校验：仅手动 http 代理需要填写地址/端口（系统代理/关闭由系统或留空决定），
                 // 避免静默保存无效配置（BuildProxyUrl 返回 null，表现为日志“已清空 git 全局代理”且下载不走代理）
-                if (cmbProxyType.SelectedIndex != 0)
+                if (cmbProxyType.SelectedIndex == 1)
                 {
                     string proxyHost = txtProxyHost.Text.Trim();
                     int proxyPort = (int)numProxyPort.Value;
                     if (proxyHost.Length == 0 || proxyPort <= 0)
                     {
-                        MessageBox.Show(this, "已选择代理类型，请填写完整的代理地址与端口。", "配置提示",
+                        MessageBox.Show(this, "已选择 http 代理，请填写完整的代理地址与端口。", "配置提示",
                             MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
@@ -584,7 +597,8 @@ namespace MoviePilot_V3
                 s.AutoStartServices = chkAutoStart.Checked;
                 s.StartMinimizedToTray = chkTrayStart.Checked;
                 s.GitHubToken = txtToken.Text.Trim();
-                s.ProxyType = cmbProxyType.SelectedIndex == 1 ? "http" : (cmbProxyType.SelectedIndex == 2 ? "socks5" : "");
+                // 下拉顺序：0=系统代理 / 1=http / 2=关闭；socks5 已移除
+                s.ProxyType = cmbProxyType.SelectedIndex == 0 ? "system" : (cmbProxyType.SelectedIndex == 1 ? "http" : "");
                 s.ProxyHost = txtProxyHost.Text.Trim();
                 s.ProxyPort = (int)numProxyPort.Value;
                 s.Save();
