@@ -1190,7 +1190,6 @@ namespace MoviePilot_V3.Services
             if (candidate != null)
             {
                 tarExePath = candidate;
-                log.Info("tar 就绪（bsdtar）: " + candidate);
             }
             else
             {
@@ -1243,7 +1242,7 @@ namespace MoviePilot_V3.Services
         /// bsdtar.exe 重命名为 tar.exe 后重新校验；返回部署后的 tar.exe 路径，失败返回 null。</summary>
         private static string DeployPortableTar(Action<string> log)
         {
-            log.Info("未找到可用的 bsdtar，开始下载便携版 tar（libarchive " + TarVersion + "）...");
+            log.Warn("未找到可用的 bsdtar，开始下载便携版 tar（libarchive " + TarVersion + "）...");
             string archive = Path.Combine(AppConfig.TMP_DIR, "libarchive-" + TarVersion + ".zip");
             string extractDir = Path.Combine(AppConfig.TMP_DIR, "tar-extract-" + Guid.NewGuid().ToString("N"));
             try
@@ -1551,6 +1550,23 @@ namespace MoviePilot_V3.Services
             try { ActiveProcesses.TryRemove(p.Id, out removed); } catch { }
         }
 
+        // TODO: 面板迁移到 .NET Core 3+ 后删除本方法
+        /// <summary>强制回收子进程结束后未确定性释放的内核句柄（调用点须已 Dispose 进程对象并清除其引用）。
+        /// 背景：.NET Framework 的 Process.Dispose 只释放进程句柄，不关闭重定向标准流（3 个匿名管道 File
+        /// 句柄）与 BeginOutputReadLine 异步读内部的等待事件（Event 句柄），二者只随终结器在 GC 时回收；
+        /// 面板空闲时分配速率低（KB/s 级），自然 GC 间隔达数十分钟~小时级，期间每次子进程调用净增约
+        /// 5 个句柄（点击“启动服务”触发 git config 即 +3 File +2 Event，实测），持续累积到下次自然 GC 才回落。
+        /// 本方法在子进程结束事件处立即触发一次终结器执行，等效 .NET Core 3.0 起 Process.Dispose 主动
+        /// 关流的确定性释放语义（该修复不回溯 .NET Framework）；调用点均属低频事件（按钮点击 / 更新步骤），
+        /// 毫秒级开销可忽略。若将来面板迁移到 .NET Core 3+，删除各调用点的本调用即可。</summary>
+        public static void ReclaimProcessHandles()
+        {
+            // 三段式：先收集（带终结器的对象进入终结队列）→ 等终结器执行完（释放内核句柄）→ 再收集彻底回收
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+
         /// <summary>终止所有面板启动且仍在运行的子进程（Form1 退出放行前调用）。</summary>
         public static void KillActiveProcesses()
         {
@@ -1601,31 +1617,34 @@ namespace MoviePilot_V3.Services
                         psi.EnvironmentVariables[kv.Key] = kv.Value;
                     }
                 }
-                using (Process p = Process.Start(psi))
+                Process p = Process.Start(psi);
+                // 注册到活动进程表：面板退出时统一终止，防止下载等长任务遗留
+                TrackProcess(p);
+                try
                 {
-                    // 注册到活动进程表：面板退出时统一终止，防止下载等长任务遗留
-                    TrackProcess(p);
-                    try
+                    // 异步读取双管道，避免串行 ReadToEnd 导致 stderr 缓冲满（长输出命令）死锁；
+                    // 子进程输出统一按 DEBUG 级别转发到面板日志（仅配置“打印Debug日志”时显示）：
+                    // 解压 / 依赖安装等耗时命令执行期间勾选 Debug 时即可看到进度
+                    p.OutputDataReceived += (s, e) => { if (e.Data != null) Form1.Debug(e.Data); };
+                    p.ErrorDataReceived += (s, e) => { if (e.Data != null) Form1.Debug(e.Data); };
+                    p.BeginOutputReadLine();
+                    p.BeginErrorReadLine();
+                    // 大文件下载（git 45MB / python 60MB）与 pip 安装耗时较长，超时放宽到 20 分钟
+                    if (!p.WaitForExit(20 * 60 * 1000))
                     {
-                        // 异步读取双管道，避免串行 ReadToEnd 导致 stderr 缓冲满（长输出命令）死锁；
-                        // 子进程输出统一按 DEBUG 级别转发到面板日志（仅配置“打印Debug日志”时显示）：
-                        // 解压 / 依赖安装等耗时命令执行期间勾选 Debug 时即可看到进度
-                        p.OutputDataReceived += (s, e) => { if (e.Data != null) Form1.Debug(e.Data); };
-                        p.ErrorDataReceived += (s, e) => { if (e.Data != null) Form1.Debug(e.Data); };
-                        p.BeginOutputReadLine();
-                        p.BeginErrorReadLine();
-                        // 大文件下载（git 45MB / python 60MB）与 pip 安装耗时较长，超时放宽到 20 分钟
-                        if (!p.WaitForExit(20 * 60 * 1000))
-                        {
-                            try { p.Kill(); } catch { }
-                            return -1;
-                        }
-                        return p.ExitCode;
+                        try { p.Kill(); } catch { }
+                        return -1;
                     }
-                    finally
-                    {
-                        UntrackProcess(p);
-                    }
+                    return p.ExitCode;
+                }
+                finally
+                {
+                    // 释放进程对象并抹除本地引用后立即回收重定向管道 / 异步读句柄：
+                    // 置 null 防 Debug 构建下 JIT 延长局部变量生存期导致回收不彻底，原因详见 ReclaimProcessHandles
+                    UntrackProcess(p);
+                    try { p.Dispose(); } catch { }
+                    p = null;
+                    ReclaimProcessHandles();
                 }
             }
             catch (Exception ex)
@@ -1670,34 +1689,37 @@ namespace MoviePilot_V3.Services
                     }
                 }
                 StringBuilder sb = new StringBuilder();
-                using (Process p = Process.Start(psi))
+                Process p = Process.Start(psi);
+                // 注册到活动进程表：面板退出时统一终止，防止下载等长任务遗留
+                TrackProcess(p);
+                try
                 {
-                    // 注册到活动进程表：面板退出时统一终止，防止下载等长任务遗留
-                    TrackProcess(p);
-                    try
+                    // 收集完整输出供调用方判断，同时逐行按 DEBUG 级别转发到面板日志
+                    // （仅配置“打印Debug日志”时显示）：uv sync / pip install 执行期间
+                    // 勾选 Debug 时即可看到进度，不再等命令结束才一次性倒出
+                    p.OutputDataReceived += (s, e) => { if (e.Data == null) return; sb.AppendLine(e.Data); Form1.Debug(e.Data); };
+                    p.ErrorDataReceived += (s, e) => { if (e.Data == null) return; sb.AppendLine(e.Data); Form1.Debug(e.Data); };
+                    p.BeginOutputReadLine();
+                    p.BeginErrorReadLine();
+                    // uv 全量安装依赖可能超过 5 分钟，超时放宽到 10 分钟
+                    if (!p.WaitForExit(10 * 60 * 1000))
                     {
-                        // 收集完整输出供调用方判断，同时逐行按 DEBUG 级别转发到面板日志
-                        // （仅配置“打印Debug日志”时显示）：uv sync / pip install 执行期间
-                        // 勾选 Debug 时即可看到进度，不再等命令结束才一次性倒出
-                        p.OutputDataReceived += (s, e) => { if (e.Data == null) return; sb.AppendLine(e.Data); Form1.Debug(e.Data); };
-                        p.ErrorDataReceived += (s, e) => { if (e.Data == null) return; sb.AppendLine(e.Data); Form1.Debug(e.Data); };
-                        p.BeginOutputReadLine();
-                        p.BeginErrorReadLine();
-                        // uv 全量安装依赖可能超过 5 分钟，超时放宽到 10 分钟
-                        if (!p.WaitForExit(10 * 60 * 1000))
-                        {
-                            try { p.Kill(); } catch { }
-                            p.WaitForExit();
-                            return sb.ToString();
-                        }
+                        try { p.Kill(); } catch { }
                         p.WaitForExit();
+                        return sb.ToString();
                     }
-                    finally
-                    {
-                        UntrackProcess(p);
-                    }
+                    p.WaitForExit();
+                    return sb.ToString();
                 }
-                return sb.ToString();
+                finally
+                {
+                    // 释放进程对象并抹除本地引用后立即回收重定向管道 / 异步读句柄：
+                    // 置 null 防 Debug 构建下 JIT 延长局部变量生存期导致回收不彻底，原因详见 ReclaimProcessHandles
+                    UntrackProcess(p);
+                    try { p.Dispose(); } catch { }
+                    p = null;
+                    ReclaimProcessHandles();
+                }
             }
             catch (Exception ex)
             {

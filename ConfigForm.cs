@@ -5,6 +5,7 @@ using System.Drawing;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
+using MoviePilot_V3.Services;
 
 namespace MoviePilot_V3
 {
@@ -673,7 +674,8 @@ namespace MoviePilot_V3
                     StandardOutputEncoding = Encoding.UTF8,
                     StandardErrorEncoding = Encoding.UTF8
                 };
-                using (Process p = Process.Start(psi))
+                Process p = Process.Start(psi);
+                try
                 {
                     if (!p.WaitForExit(3000))
                     {
@@ -687,6 +689,14 @@ namespace MoviePilot_V3
                     }
                     // 进程已退出，读端仍可读完管道中残留输出（写端已关闭，读到 EOF 即结束）
                     return p.StandardOutput.ReadToEnd().Trim();
+                }
+                finally
+                {
+                    // 释放进程对象并抹除本地引用后立即回收重定向管道句柄：
+                    // 置 null 防 Debug 构建下 JIT 延长局部变量生存期导致回收不彻底，原因详见 ReclaimProcessHandles
+                    try { p.Dispose(); } catch { }
+                    p = null;
+                    EnvironmentSetup.ReclaimProcessHandles();
                 }
             }
             catch

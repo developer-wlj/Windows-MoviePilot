@@ -1082,41 +1082,44 @@ namespace MoviePilot_V3.Services
             // 与 ServiceManager.StartProcess 一致：追加系统 PATH，避免 git 子进程（hook、ssh、外部工具）找不到系统程序
             psi.EnvironmentVariables["PATH"] = envPath + ";" + Environment.GetEnvironmentVariable("PATH");
 
-            using (Process p = Process.Start(psi))
+            Process p = Process.Start(psi);
+            // 注册到活动进程表：面板退出时统一终止，防止 git 等命令在面板退出后遗留
+            EnvironmentSetup.TrackProcess(p);
+            try
             {
-                // 注册到活动进程表：面板退出时统一终止，防止 git 等命令在面板退出后遗留
-                EnvironmentSetup.TrackProcess(p);
-                try
+                // 收集完整输出供调用方判断，同时逐行按 DEBUG 级别转发到面板日志
+                // （仅配置“打印Debug日志”时显示）：拉取标签 / 克隆 / 打补丁等耗时命令
+                // 执行期间勾选 Debug 时即可看到进度；事件式读取天然避免管道缓冲死锁
+                StringBuilder sb = new StringBuilder();
+                p.OutputDataReceived += (s, e) => { if (e.Data == null) return; sb.AppendLine(e.Data); Form1.Debug(e.Data); };
+                p.ErrorDataReceived += (s, e) => { if (e.Data == null) return; sb.AppendLine(e.Data); Form1.Debug(e.Data); };
+                p.BeginOutputReadLine();
+                p.BeginErrorReadLine();
+                // git 命令超时限制为 120 秒（卡死的网络请求应尽快放弃，避免长时间挂住）
+                bool timedOut = !p.WaitForExit(120 * 1000);
+                if (timedOut)
                 {
-                    // 收集完整输出供调用方判断，同时逐行按 DEBUG 级别转发到面板日志
-                    // （仅配置“打印Debug日志”时显示）：拉取标签 / 克隆 / 打补丁等耗时命令
-                    // 执行期间勾选 Debug 时即可看到进度；事件式读取天然避免管道缓冲死锁
-                    StringBuilder sb = new StringBuilder();
-                    p.OutputDataReceived += (s, e) => { if (e.Data == null) return; sb.AppendLine(e.Data); Form1.Debug(e.Data); };
-                    p.ErrorDataReceived += (s, e) => { if (e.Data == null) return; sb.AppendLine(e.Data); Form1.Debug(e.Data); };
-                    p.BeginOutputReadLine();
-                    p.BeginErrorReadLine();
-                    // git 命令超时限制为 120 秒（卡死的网络请求应尽快放弃，避免长时间挂住）
-                    bool timedOut = !p.WaitForExit(120 * 1000);
-                    if (timedOut)
-                    {
-                        // 卡死兜底：强制终止（Kill 后管道关闭，下方读取必然完成）；返回输出附超时标记，
-                        // 调用方按 fatal / 空输出判断走失败路径
-                        try { p.Kill(); } catch { }
-                    }
-                    // 无参 WaitForExit 等待异步管道读取结束（Kill 后管道关闭，读取必然完成）
-                    p.WaitForExit();
-                    string output = sb.ToString();
-                    if (timedOut)
-                    {
-                        output += Environment.NewLine + "fatal: git 命令超时（120 秒），已强制终止";
-                    }
-                    return output;
+                    // 卡死兜底：强制终止（Kill 后管道关闭，下方读取必然完成）；返回输出附超时标记，
+                    // 调用方按 fatal / 空输出判断走失败路径
+                    try { p.Kill(); } catch { }
                 }
-                finally
+                // 无参 WaitForExit 等待异步管道读取结束（Kill 后管道关闭，读取必然完成）
+                p.WaitForExit();
+                string output = sb.ToString();
+                if (timedOut)
                 {
-                    EnvironmentSetup.UntrackProcess(p);
+                    output += Environment.NewLine + "fatal: git 命令超时（120 秒），已强制终止";
                 }
+                return output;
+            }
+            finally
+            {
+                // 释放进程对象并抹除本地引用后立即回收重定向管道 / 异步读句柄：
+                // 置 null 防 Debug 构建下 JIT 延长局部变量生存期导致回收不彻底，原因详见 ReclaimProcessHandles
+                EnvironmentSetup.UntrackProcess(p);
+                try { p.Dispose(); } catch { }
+                p = null;
+                EnvironmentSetup.ReclaimProcessHandles();
             }
         }
     }

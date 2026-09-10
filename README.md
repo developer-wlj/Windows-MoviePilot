@@ -21,7 +21,6 @@
 
 - Windows 10 / 11 64 位
 - 需安装 **.NET Framework 4.8 运行时**
-- **低于 Windows Server 2019**（及 Windows 10 1803 之前的版本）未内置 tar：下载与 zip 解压已由 .NET 内置实现（不再需要 curl），tar 缺失时面板也会**自动下载部署**便携版 bsdtar，通常无需手动处理，细节见 [详细说明](README-advanced.md)「运行环境要求」
 
 ## 目录结构
 

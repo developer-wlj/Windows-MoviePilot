@@ -6,7 +6,6 @@
 
 - Windows 10 / 11 64 位（已在 Windows 24H2 验证）
 - 必须安装 **.NET Framework 4.8 运行时**（本程序基于 4.8 构建，缺省会无法启动）
-- **低于 Windows Server 2019**（及 Windows 10 1803 之前的版本）未内置 tar（bsdtar），面板会**自动下载部署**便携版bsdtar
 
 ### 检测是否已安装 .NET Framework 4.8
 
