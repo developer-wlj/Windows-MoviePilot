@@ -273,13 +273,17 @@ namespace MoviePilot_V3.Services
             }
         }
 
-        /// 生成服务状态文本（Nginx / Python）。
-        public static string GetStatusText()
+        /// 采集各服务当前状态（Nginx / Python），供面板"服务状态"区显示：
+        /// 返回结构化状态行（名称 / 状态文本 / 是否正常），由 UI 层决定配色与排版，
+        /// 服务层不再拼接显示文本（原 GetStatusText 返回的文本串已由面板状态面板取代）。
+        public static List<StatusItem> GetStatus()
         {
-            string nginx = IsRunning("nginx") ? "运行中" : "已停止";
-            string python = IsRunning("python") ? "运行中" : "已停止";
-            return "Nginx:  " + nginx + Environment.NewLine +
-                   "Python: " + python + Environment.NewLine;
+            bool nginxRunning = IsRunning("nginx");
+            bool pythonRunning = IsRunning("python");
+            List<StatusItem> list = new List<StatusItem>(2);
+            list.Add(new StatusItem("Nginx", nginxRunning ? "运行中" : "已停止", nginxRunning));
+            list.Add(new StatusItem("Python", pythonRunning ? "运行中" : "已停止", pythonRunning));
+            return list;
         }
 
         /// 启动全部服务：Nginx、Python 后端。启动前先确保运行环境就绪（缺失的便携版
@@ -521,7 +525,7 @@ namespace MoviePilot_V3.Services
             List<int> pids = useWmi ? GetBackendPythonPidsWmi(log) : GetBackendPythonPids();
             if (pids.Count == 0)
             {
-                log.Info("未查询到后端进程，跳过优雅停止（进程将随系统关机强制结束）");
+                log.Info("未查询到后端进程");
                 return;
             }
             log.Info("停止后端: 候选进程 " + pids.Count + " 个 (PID " + string.Join(",", pids) + ")");

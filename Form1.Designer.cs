@@ -10,9 +10,11 @@
         private System.Windows.Forms.Label lblPanelUpdateTip;
         private System.Windows.Forms.Label lblMpUpdateTip;
         private System.Windows.Forms.GroupBox grpStatus;
-        private System.Windows.Forms.TextBox txtStatus;
+        // 服务状态区：自绘状态面板（原多行 TextBox 每次整体赋值刷新时会闪烁，见 StatusPanel.cs 类注释）
+        private StatusPanel statusPanel;
         private System.Windows.Forms.GroupBox grpLog;
-        private System.Windows.Forms.TextBox txtLog;
+        // 运行日志区：控制台风格自绘控件（原多行 TextBox 追加日志时会闪烁，见 ConsoleBox.cs 类注释）
+        private ConsoleBox logBox;
         private System.Windows.Forms.Button btnStart;
         private System.Windows.Forms.Button btnStop;
         private System.Windows.Forms.Button btnRestart;
@@ -42,9 +44,9 @@
         {
             this.lblTitle = new System.Windows.Forms.Label();
             this.grpStatus = new System.Windows.Forms.GroupBox();
-            this.txtStatus = new System.Windows.Forms.TextBox();
+            this.statusPanel = new StatusPanel();
             this.grpLog = new System.Windows.Forms.GroupBox();
-            this.txtLog = new System.Windows.Forms.TextBox();
+            this.logBox = new ConsoleBox();
             this.btnStart = new System.Windows.Forms.Button();
             this.btnStop = new System.Windows.Forms.Button();
             this.btnRestart = new System.Windows.Forms.Button();
@@ -79,7 +81,7 @@
             this.grpStatus.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.grpStatus.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
-            this.grpStatus.Controls.Add(this.txtStatus);
+            this.grpStatus.Controls.Add(this.statusPanel);
             this.grpStatus.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(170)))), ((int)(((byte)(170)))), ((int)(((byte)(170)))));
             this.grpStatus.Location = new System.Drawing.Point(15, 75);
             this.grpStatus.Margin = new System.Windows.Forms.Padding(4);
@@ -90,23 +92,22 @@
             this.grpStatus.TabStop = false;
             this.grpStatus.Text = "服务状态";
             // 
-            // txtStatus
+            // statusPanel
             // 
-            this.txtStatus.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            // 自绘状态面板：状态圆点 + 服务名 + 状态文本（运行中绿 / 已停止红），
+            // BackColor 与 grpStatus 一致故无边框也浑然一体（原 BorderStyle/Multiline/ReadOnly 等 TextBox 专有属性已不适用）
+            this.statusPanel.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtStatus.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
-            this.txtStatus.BorderStyle = System.Windows.Forms.BorderStyle.None;
-            this.txtStatus.Font = new System.Drawing.Font("Consolas", 11F);
-            this.txtStatus.ForeColor = System.Drawing.Color.Lime;
-            this.txtStatus.Location = new System.Drawing.Point(23, 37);
-            this.txtStatus.Margin = new System.Windows.Forms.Padding(4);
-            this.txtStatus.Multiline = true;
-            this.txtStatus.Name = "txtStatus";
-            this.txtStatus.ReadOnly = true;
-            this.txtStatus.Size = new System.Drawing.Size(1053, 120);
-            this.txtStatus.TabIndex = 2;
-            this.txtStatus.TabStop = false;
+            this.statusPanel.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
+            this.statusPanel.Font = new System.Drawing.Font("Consolas", 11F);
+            this.statusPanel.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(204)))), ((int)(((byte)(204)))), ((int)(((byte)(204)))));
+            this.statusPanel.Location = new System.Drawing.Point(23, 37);
+            this.statusPanel.Margin = new System.Windows.Forms.Padding(4);
+            this.statusPanel.Name = "statusPanel";
+            this.statusPanel.Size = new System.Drawing.Size(1053, 120);
+            this.statusPanel.TabIndex = 2;
+            this.statusPanel.TabStop = false;
             // 
             // grpLog
             // 
@@ -114,7 +115,7 @@
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.grpLog.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
-            this.grpLog.Controls.Add(this.txtLog);
+            this.grpLog.Controls.Add(this.logBox);
             this.grpLog.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(170)))), ((int)(((byte)(170)))), ((int)(((byte)(170)))));
             this.grpLog.Location = new System.Drawing.Point(15, 270);
             this.grpLog.Margin = new System.Windows.Forms.Padding(4);
@@ -125,25 +126,23 @@
             this.grpLog.TabStop = false;
             this.grpLog.Text = "运行日志";
             // 
-            // txtLog
+            // logBox
             // 
-            // FixedSingle 单线边框：避免 Fixed3D 立体边框在鼠标悬停/重绘时的边框闪烁抖动
-            this.txtLog.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            // 控制台风格自绘日志区：深灰底(#2D2D2D，沿用原 TextBox 底色) + 等宽字体 + 按级别着色，
+            // 边框与滚动条均由控件内部绘制/承载
+            // （原 BorderStyle/ScrollBars/ReadOnly 等 TextBox 专有属性已不适用）
+            this.logBox.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtLog.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
-            this.txtLog.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.txtLog.Font = new System.Drawing.Font("Consolas", 9F);
-            this.txtLog.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(204)))), ((int)(((byte)(204)))), ((int)(((byte)(204)))));
-            this.txtLog.Location = new System.Drawing.Point(15, 38);
-            this.txtLog.Margin = new System.Windows.Forms.Padding(4);
-            this.txtLog.Multiline = true;
-            this.txtLog.Name = "txtLog";
-            this.txtLog.ReadOnly = true;
-            this.txtLog.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.txtLog.Size = new System.Drawing.Size(1066, 289);
-            this.txtLog.TabIndex = 4;
-            this.txtLog.TabStop = false;
+            this.logBox.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
+            this.logBox.Font = new System.Drawing.Font("Consolas", 9F);
+            this.logBox.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(204)))), ((int)(((byte)(204)))), ((int)(((byte)(204)))));
+            this.logBox.Location = new System.Drawing.Point(15, 38);
+            this.logBox.Margin = new System.Windows.Forms.Padding(4);
+            this.logBox.Name = "logBox";
+            this.logBox.Size = new System.Drawing.Size(1066, 289);
+            this.logBox.TabIndex = 4;
+            this.logBox.TabStop = false;
             // 
             // btnStart
             // 

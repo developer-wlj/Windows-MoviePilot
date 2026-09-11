@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.IO.Pipes;
@@ -27,9 +28,8 @@ namespace MoviePilot_V3
         private bool loadDone; // Form1_Load 是否已执行（首次显示被吞掉时手动触发；用户 Show() 再次触发 Load 事件时跳过）
         private ConfigForm configForm; // 当前打开的配置窗口（模态）：托盘单击切换时随主窗口一起隐藏/显示
         private FormWindowState lastWindowState = FormWindowState.Normal; // 最小化前的窗口状态（托盘恢复时按此还原，避免最大化状态丢失）
-        private readonly StringBuilder pendingLogs = new StringBuilder(); // 窗口隐藏期间的日志缓存（仅 UI 线程访问）：显示时一次性补发，避免隐藏期间逐行 AppendText 拖慢显示
-        private const int MaxLogChars = 500 * 1024; // 日志区文本上限：超过后截断为一半，防止无限增长拖慢界面与占用内存
-        private const int MaxPendingLogChars = 200 * 1024; // 隐藏期间日志缓存上限：超过后丢弃最旧一半
+        // 日志区由 ConsoleBox 自绘承载：日志按"条目"保存在内存（上限 4000 条，见 ConsoleBox.MaxLines），
+        // 窗口隐藏时不产生任何绘制开销，因此不再需要"隐藏期间缓存 + 显示时补发"的一套逻辑
         private string pendingPanelTag; // 右上角面板提示对应的面板有新版本（点击更新时使用）
         private bool panelUpdateRunning; // 面板自更新流程进行中（防重复触发，退出前拦截）
         private bool updateTipsStarted; // 启动版本提示检测是否已发起（防重复）
@@ -249,7 +249,8 @@ namespace MoviePilot_V3
         /// WS_EX_COMPOSITED：子控件与窗体在同一合成层统一呈现，子控件各自重绘不再单独上屏，
         /// 消除深色窗体上子控件（标题 / 状态块 / 日志块）重绘瞬间的区域白屏（内容已绘制、
         /// 边缘被系统默认色重绘形成的“白色 margin”）。
-        /// 注意：本窗体所有 TextBox 均为 ReadOnly（无文本输入光标），不受合成层 caret 兼容问题影响。
+        /// 注意：本窗体仅剩的 TextBox（服务状态）为 ReadOnly（无文本输入光标），不受合成层 caret
+        /// 兼容问题影响；运行日志区已是 ConsoleBox 自绘控件（自身双缓冲，无原生控件参与合成）。
         /// </summary>
         protected override CreateParams CreateParams
         {
@@ -606,19 +607,19 @@ namespace MoviePilot_V3
         /// 追加一行带时间戳的运行日志（线程安全，后台线程可直接调用）。INFO 级别：主流程状态。
         public void Log(string msg)
         {
-            AppendLog("[INFO] " + msg);
+            AppendLog("[INFO] " + msg, LogLevel.Info);
         }
 
-        /// ERROR 级别：失败 / 异常等需要关注的信息。
+        /// ERROR 级别：失败 / 异常等需要关注的信息（控制台以红色显示）。
         public void LogError(string msg)
         {
-            AppendLog("[ERROR] " + msg);
+            AppendLog("[ERROR] " + msg, LogLevel.Error);
         }
 
-        /// WARN 级别：可恢复异常 / 自动重试 / 跳过等需要留意的信息。
+        /// WARN 级别：可恢复异常 / 自动重试 / 跳过等需要留意的信息（控制台以琥珀色显示）。
         public void LogWarn(string msg)
         {
-            AppendLog("[WARN] " + msg);
+            AppendLog("[WARN] " + msg, LogLevel.Warn);
         }
 
         /// 服务层委托日志入口（方法组可直接作为 Action&lt;string&gt; 传给 Services 层）：
@@ -648,7 +649,7 @@ namespace MoviePilot_V3
             {
                 return;
             }
-            AppendLog("[DEBUG] " + msg);
+            AppendLog("[DEBUG] " + msg, LogLevel.Debug);
         }
 
         /// DEBUG 级别静态入口：Services 层子进程（uv / pip / git）输出逐行转发，
@@ -670,23 +671,23 @@ namespace MoviePilot_V3
         // 逐行到达这里；先合并、再由 UI 线程按批消费。逐行 BeginInvoke 在海量输出
         // （如拉取大量标签）时会灌满 UI 消息队列，窗口长时间无法处理消息而显示"无响应"
         private static readonly object LogBatchLock = new object();
-        private static readonly StringBuilder LogBatch = new StringBuilder();
+        private static readonly List<LogItem> LogBatch = new List<LogItem>();
         private static bool logFlushPending; // 是否已有批量刷新消息挂起（单飞防抖：任意时刻最多一条）
-        private const int MaxFlushChars = 32 * 1024; // 单批刷新上限：防止单次 AppendText 过大阻塞 UI
+        private const int MaxFlushItems = 500; // 单批刷新条数上限：防止一次封送携带过多日志阻塞 UI
 
-        /// 日志核心：时间戳 + 追加 + 截断（线程安全，后台线程可直接调用）。
-        private void AppendLog(string content)
+        /// 日志核心：时间戳 + 级别（线程安全，后台线程可直接调用；日志条数上限由 ConsoleBox 控制）。
+        private void AppendLog(string content, LogLevel level)
         {
-            string line = "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "] " + content + "\r\n";
+            string line = "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "] " + content;
             if (InvokeRequired)
             {
-                // 后台线程：行先合并进缓冲，仅在没有挂起刷新时排一条封送消息；
+                // 后台线程：条目（正文 + 级别）先合并进缓冲，仅在没有挂起刷新时排一条封送消息；
                 // 面板退出过程中句柄可能已销毁：封送失败静默丢弃
                 bool shouldFlush = false;
-                
+
                 lock (LogBatchLock)
                 {
-                    LogBatch.Append(line);
+                    LogBatch.Add(new LogItem(line, level));
                     if (!logFlushPending)
                     {
                         logFlushPending = true;
@@ -700,27 +701,29 @@ namespace MoviePilot_V3
                 }
                 return;
             }
-            AppendLogCore(line);
+            if (logBox == null) return;
+            logBox.Append(line, level);
         }
 
-        /// 批量刷新合并日志（仅 UI 线程执行）：一次封送可携带多行，避免消息风暴。
+        /// 批量刷新合并日志（仅 UI 线程执行）：一次封送可携带多条，避免消息风暴。
         private void FlushLogBatch()
         {
-            string batch = null;
+            LogItem[] batch;
             bool more = false;
             lock (LogBatchLock)
             {
                 logFlushPending = false;
-                if (LogBatch.Length == 0) return;
-                if (LogBatch.Length > MaxFlushChars)
+                int count = LogBatch.Count;
+                if (count == 0) return;
+                if (count > MaxFlushItems)
                 {
-                    batch = LogBatch.ToString(0, MaxFlushChars);
-                    LogBatch.Remove(0, MaxFlushChars);
+                    batch = LogBatch.GetRange(0, MaxFlushItems).ToArray();
+                    LogBatch.RemoveRange(0, MaxFlushItems);
                     more = true; // 还有剩余：继续排下一次刷新，保证数据最终显示
                 }
                 else
                 {
-                    batch = LogBatch.ToString();
+                    batch = LogBatch.ToArray();
                     LogBatch.Clear();
                 }
             }
@@ -728,42 +731,8 @@ namespace MoviePilot_V3
             {
                 try { BeginInvoke(new Action(FlushLogBatch)); } catch { }
             }
-            AppendLogCore(batch);
-        }
-
-        /// 追加文本（仅 UI 线程调用）：先补发隐藏期间缓存，再追加当前批，最后按上限截断。
-        private void AppendLogCore(string text)
-        {
-            if (Visible)
-            {
-                // 窗口可见：先补发隐藏期间缓存的日志，再追加当前批（隐藏期间零控件操作）
-                FlushPendingLogs();
-                txtLog.AppendText(text);
-                txtLog.SelectionStart = txtLog.TextLength;
-                txtLog.ScrollToCaret();
-            }
-            else
-            {
-                // 窗口隐藏：只缓存不操作控件，显示时一次性补发（见上）
-                pendingLogs.Append(text);
-                if (pendingLogs.Length > MaxPendingLogChars)
-                {
-                    pendingLogs.Remove(0, pendingLogs.Length - MaxPendingLogChars / 2);
-                }
-            }
-            // 日志区上限：超过后截断为一半（低频触发，全量替换可接受）
-            if (txtLog.TextLength > MaxLogChars)
-            {
-                txtLog.Text = txtLog.Text.Substring(txtLog.TextLength - MaxLogChars / 2);
-            }
-        }
-
-        /// 补发窗口隐藏期间缓存的日志（仅 UI 线程调用）。
-        private void FlushPendingLogs()
-        {
-            if (pendingLogs.Length == 0) return;
-            txtLog.AppendText(pendingLogs.ToString());
-            pendingLogs.Clear();
+            // 整批交给控制台一次追加：内部只折算一次滚动范围、只失效一次重绘
+            if (logBox != null) logBox.AppendBatch(batch);
         }
 
         /// 启动命名管道服务器：命令行模式（-c）连接后把日志实时显示到运行日志区。
@@ -1010,9 +979,8 @@ namespace MoviePilot_V3
             LayoutButtonRow();
             LayoutUpdateTips();
             Show();
-            // 补发窗口隐藏期间缓存的日志：仅靠日志到达时补发的话，显示后若无新日志，
-            // 隐藏期间的日志会一直躺在缓存里，日志区看似空白
-            FlushPendingLogs();
+            // 日志无需补发：ConsoleBox 把全部条目保存在内存中，隐藏期间照常追加（只是不重绘），
+            // 窗口显示后由系统 WM_PAINT 按最新内容整体绘制
             // 仅当窗口处于最小化状态（点最小化按钮到任务栏后从托盘恢复）时按最小化前的状态还原：
             // 普通窗口还原普通、最大化窗口还原最大化；无条件设置 Normal 会把最大化窗口还原为
             // 最大化前的尺寸，且 Show() 先以最大化显示再缩小，产生一闪而过的跳动
@@ -1067,22 +1035,23 @@ namespace MoviePilot_V3
         /// 放后台线程执行避免冻结界面；查询期间再次触发则跳过本次（下次定时器到点自然补上）。
         private void RefreshStatus()
         {
-            if (!txtStatus.IsHandleCreated || statusQuerying)
+            if (!statusPanel.IsHandleCreated || statusQuerying)
             {
                 return;
             }
             statusQuerying = true;
             Task.Run(() =>
             {
-                string text = ServiceManager.GetStatusText();
+                List<StatusItem> status = ServiceManager.GetStatus();
                 try
                 {
                     BeginInvoke(new Action(() =>
                     {
                         statusQuerying = false;
-                        if (txtStatus.IsHandleCreated)
+                        if (statusPanel.IsHandleCreated)
                         {
-                            txtStatus.Text = text;
+                            // 状态面板内部比较内容：与上次一致时直接跳过重绘（状态稳定期间零绘制）
+                            statusPanel.SetItems(status);
                         }
                     }));
                 }

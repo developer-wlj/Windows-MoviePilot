@@ -88,6 +88,12 @@
     </Compile>
     <Compile Include="AppConfig.cs" />
     <Compile Include="AppSettings.cs" />
+    <Compile Include="ConsoleBox.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="StatusPanel.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="ConfigForm.cs">
       <SubType>Form</SubType>
     </Compile>
