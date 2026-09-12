@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 using MoviePilot_V3.Services;
@@ -58,15 +59,52 @@ namespace MoviePilot_V3
             base.Dispose(disposing);
         }
 
-        /// 居中于父窗口：在窗口首次可见之前定位（句柄已创建、尺寸已确定），
-        /// 避免 CenterParent 先出现在默认位置再移动造成的一帧闪现。
+        /// 兜底修正：居中已由 CreateParams 在窗口创建时完成（窗口由 CreateWindowEx 直接创建在最终位置），
+        /// 这里只在位置偏离目标时修正（例如 AutoScale 改变了窗体尺寸）。
+        /// 偏差 ≤2px 时不做任何移动——无谓的 SetWindowPos 会让合成层（WS_EX_COMPOSITED）窗口
+        /// 重新出现一次位置跳变。
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            if (Owner != null)
+            Rectangle area = Owner != null ? Owner.Bounds : Screen.PrimaryScreen.WorkingArea;
+            Point want = new Point(
+                area.Left + Math.Max(0, (area.Width - Width) / 2),
+                area.Top + Math.Max(0, (area.Height - Height) / 2));
+            if (Math.Abs(Location.X - want.X) > 2 || Math.Abs(Location.Y - want.Y) > 2)
             {
-                Location = new Point(Owner.Left + (Owner.Width - Width) / 2,
-                                     Owner.Top + (Owner.Height - Height) / 2);
+                Location = want;
+            }
+        }
+
+        /// <summary>
+        /// 首帧补绘：窗口"已可见、客户区却还没画"的中间态。
+        /// 实测（原生消息时序，去掉截屏干扰）：ShowWindow 使窗口可见后，首个 WM_PAINT 原本要等
+        /// 消息泵下一轮才被投递（本机实测"可见→首绘"空窗约 7ms）；这段时间里 DWM 可能先把未绘制
+        /// 的客户区合成上屏，表现为"闪一下只有边框 / 空白的窗口"。
+        /// 显示后立刻同步整窗重绘：RDW_UPDATENOW 让 WM_PAINT 在当前消息内同步完成，
+        /// 实测首个 WM_PAINT 由"落在 ShowDialog 返回之后"变为"落在其返回之前"。
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
+        private const uint RDW_INVALIDATE = 0x0001;
+        private const uint RDW_ERASE = 0x0004;
+        private const uint RDW_FRAME = 0x0400;
+        private const uint RDW_ALLCHILDREN = 0x0080;
+        private const uint RDW_UPDATENOW = 0x0100;
+
+        protected override void SetVisibleCore(bool value)
+        {
+            base.SetVisibleCore(value);
+
+            // 显示后同步补一次整窗重绘，避免"只有边框"的首帧被合成上屏
+            if (value && IsHandleCreated)
+            {
+                try
+                {
+                    RedrawWindow(Handle, IntPtr.Zero, IntPtr.Zero,
+                        RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW | RDW_ALLCHILDREN | RDW_FRAME);
+                }
+                catch { }
             }
         }
 
@@ -86,9 +124,11 @@ namespace MoviePilot_V3
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
-            // Manual 而非 CenterParent：CenterParent 会让窗口先在默认位置 (0,0) 显示一帧再居中，
-            // 合成层（WS_EX_COMPOSITED）窗口首帧表现为左上角黑色细框闪现；居中改由 OnLoad 中
-            // 在窗口可见前手动计算（见 OnLoad），窗口直接出现在最终位置
+            // Manual：居中坐标由 CreateParams 在窗口创建前算好并交给 CreateWindowEx（详见 CreateParams），
+            // 窗口直接出现在最终位置。
+            // 不能用 CenterParent：实测它把本对话框创建在 (76,76)（并非主窗口中心）。
+            // 也不能用 Manual + OnLoad 改 Location：实测窗口会先以 (0,0) 创建、之后才被移动，
+            // 合成层窗口（WS_EX_COMPOSITED）会先在桌面左上角闪一帧"只有边框"的窗口再跳到目标位置。
             StartPosition = FormStartPosition.Manual;
             // 窗口图标与主窗口一致（exe 内嵌清单图标优先，app.ico 文件回退）；
             // 存字段而非局部变量：Dispose 时显式释放
@@ -401,8 +441,13 @@ namespace MoviePilot_V3
         }
 
         /// <summary>
-        /// WS_EX_COMPOSITED：子控件与窗体统一合成，消除深色对话框子控件重绘瞬间的区域白屏。
-        /// 注意：本对话框含文本输入框，若发现输入光标（caret）显示异常，可移除本重写。
+        /// 1) WS_EX_COMPOSITED：子控件与窗体统一合成，消除深色对话框子控件重绘瞬间的区域白屏。
+        ///    注意：本对话框含文本输入框，若发现输入光标（caret）显示异常，可移除本重写。
+        /// 2) 在窗口创建前就把"居中于主窗口"的坐标写进 CreateParams：窗口被 CreateWindowEx 直接
+        ///    创建在最终位置，全生命周期内不存在 (0,0) 这个中间位置。
+        ///    实测依据：用 StartPosition=Manual + OnLoad 改 Location 时，窗口先以 (0,0) 创建、
+        ///    之后才被位移，合成层窗口（WS_EX_COMPOSITED）会先在桌面左上角闪一帧"只有边框"的窗口；
+        ///    CenterParent 则会创建在 (76,76)。只有把坐标交给 CreateParams 才能一出生就在目标位置。
         /// </summary>
         protected override CreateParams CreateParams
         {
@@ -410,6 +455,10 @@ namespace MoviePilot_V3
             {
                 CreateParams cp = base.CreateParams;
                 cp.ExStyle |= 0x02000000; // WS_EX_COMPOSITED
+                // Owner 尚未设置时（非 ShowDialog(owner) 方式打开）退回屏幕居中，避免又落到 (0,0)
+                Rectangle area = Owner != null ? Owner.Bounds : Screen.PrimaryScreen.WorkingArea;
+                cp.X = area.Left + Math.Max(0, (area.Width - Width) / 2);
+                cp.Y = area.Top + Math.Max(0, (area.Height - Height) / 2);
                 return cp;
             }
         }

@@ -279,10 +279,11 @@
             this.Margin = new System.Windows.Forms.Padding(4);
             this.MinimumSize = new System.Drawing.Size(900, 572);
             this.Name = "Form1";
-            // Manual 而非 CenterScreen：CenterScreen 在句柄创建时先按默认位置 (0,0) 创建窗口、再居中移动，
-            // 合成层（WS_EX_COMPOSITED）窗口首帧在 Windows 11 24H2 上表现为左上角黑色细框闪现后瞬移到中心；
-            // 居中改由 Form1_Load 在窗口可见前手动计算（与 ConfigForm 的 OnLoad 居中同一模式）
-            this.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
+            // CenterScreen：窗口由 CreateWindowEx 直接创建在屏幕中心（实测句柄出生矩形即 (705,392)），
+            // 全生命周期内不存在 (0,0) 这个中间位置。
+            // 曾用 Manual + Form1_Load 里手动居中：实测窗口会先以 (0,0) 创建、之后才被位移到中心，
+            // 合成层窗口（WS_EX_COMPOSITED）会先在桌面左上角闪一帧"只有边框"的窗口再跳到屏幕中心。
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "MoviePilot-V3 服务管理控制台 v" + AppConfig.APP_VERSION;
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Form1_FormClosing);
             this.Load += new System.EventHandler(this.Form1_Load);

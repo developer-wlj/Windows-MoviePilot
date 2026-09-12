@@ -67,6 +67,20 @@ namespace MoviePilot_V3
         [DllImport("user32.dll")]
         private static extern bool ShutdownBlockReasonDestroy(IntPtr hWnd);
 
+        // 首帧补绘：窗口"已可见、客户区却还没画"的中间态。
+        // 实测（原生消息时序，去掉截屏干扰）：ShowWindow 使窗口可见后，首个 WM_PAINT 原本要等
+        // 消息泵下一轮才被投递（本机实测"可见→首绘"空窗约 7ms），这段时间里 DWM 可能先把未绘制
+        // 的客户区合成上屏，是"闪一下只有边框 / 空白窗口"的来源之一。
+        // 显示后立刻同步整窗重绘：RDW_UPDATENOW 让 WM_PAINT 在当前消息内同步完成，
+        // 实测首个 WM_PAINT 由"落在 Show() 返回之后"变为"落在 Show() 返回之前"。
+        [DllImport("user32.dll")]
+        private static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
+        private const uint RDW_INVALIDATE = 0x0001;
+        private const uint RDW_ERASE = 0x0004;
+        private const uint RDW_FRAME = 0x0400;
+        private const uint RDW_ALLCHILDREN = 0x0080;
+        private const uint RDW_UPDATENOW = 0x0100;
+
         // 关机优先级：SetProcessShutdownParameters 把面板提到应用最高档 0x300（所有进程默认 0x280）。
         // 系统关机/重启时 csrss 按优先级从高到低向各进程发通知：控制台进程（nginx/python）收到
         // CTRL_SHUTDOWN_EVENT 默认直接退出，且其通知先于面板的 WM_QUERYENDSESSION，导致面板拦截时
@@ -302,7 +316,20 @@ namespace MoviePilot_V3
                 OnLoad(EventArgs.Empty);
                 return; // 保持隐藏状态
             }
+
             base.SetVisibleCore(value);
+
+            // 非首次显示（例如从托盘恢复）时的兜底：仍同步补一次整窗重绘，
+            // 避免"只有边框"的首帧被合成上屏。
+            if (value && IsHandleCreated)
+            {
+                try
+                {
+                    RedrawWindow(Handle, IntPtr.Zero, IntPtr.Zero,
+                        RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW | RDW_ALLCHILDREN | RDW_FRAME);
+                }
+                catch { }
+            }
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -314,15 +341,18 @@ namespace MoviePilot_V3
             }
             loadDone = true;
 
-            // 首次显示前按最终尺寸定位到屏幕中心（StartPosition=Manual，与 ConfigForm 的 OnLoad 居中同一模式）：
-            // CenterScreen 的默认时序是句柄创建时先按默认位置 (0,0) 创建窗口、再居中移动，
-            // 合成层（WS_EX_COMPOSITED）窗口首帧在 Windows 11 24H2 上表现为左上角黑色细框闪现后瞬移到中心；
-            // Load 在窗口首次可见前执行（SetVisibleCore(true) 触发 OnLoad 后才置可见状态），此处定位不可见，
-            // 窗口直接出现在最终位置。托盘驻留模式下 Load 在启动时隐藏执行，之后 Show 同样不再移动
+            // 居中已由 StartPosition=CenterScreen 在窗口创建时完成（实测句柄出生矩形就是屏幕中心），
+            // 此处只兜底修正 AutoScale 改变窗体尺寸导致的偏移：偏差 ≤2px 时不做任何移动——
+            // 无谓的 SetWindowPos 会让合成层（WS_EX_COMPOSITED）窗口重新出现一次位置跳变。
+            // 托盘驻留模式下本方法在启动时隐藏执行，之后 Show 同样不再移动窗口
             Rectangle wa = Screen.FromControl(this).WorkingArea;
-            Location = new Point(
+            Point center = new Point(
                 wa.X + Math.Max(0, (wa.Width - Width) / 2),
                 wa.Y + Math.Max(0, (wa.Height - Height) / 2));
+            if (Math.Abs(Location.X - center.X) > 2 || Math.Abs(Location.Y - center.Y) > 2)
+            {
+                Location = center;
+            }
 
             // 监听命名管道：命令行模式（MoviePilot-V3 -c xxx）的日志实时显示到运行日志区
             StartLogPipeServer();

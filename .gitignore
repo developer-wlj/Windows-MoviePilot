@@ -3,4 +3,5 @@
 .workbuddy
 /bin/
 /obj/
+/tools/
 *.csproj.user
