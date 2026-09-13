@@ -323,6 +323,8 @@ namespace MoviePilot_V3.Services
                         }
                         // 官方更新成功：备份含用户修改时覆盖回，保留用户对分类的修改
                         RestoreCategoryYaml(log, backedUp);
+                        // 更新成功后清理后端升级状态文件（moviepilot-update 下的 install.json / prepared.json / state.json）
+                        ClearPreparedUpdateFiles(log);
                         output = "更新成功";
                     }
                 }
@@ -415,6 +417,8 @@ namespace MoviePilot_V3.Services
             }
             // 官方更新成功：备份含用户修改时覆盖回，保留用户对分类的修改
             RestoreCategoryYaml(log, backedUp);
+            // 更新成功后清理后端升级状态文件（moviepilot-update 下的 install.json / prepared.json / state.json）
+            ClearPreparedUpdateFiles(log);
 
             // 6. 重新安装/更新 Python 依赖（代码版本变化，依赖可能变更）
             EnvironmentSetup.InstallRequirements(AppConfig.GetPythonExe(), log);
@@ -453,6 +457,38 @@ namespace MoviePilot_V3.Services
             }
             EnvironmentSetup.EnsureFrontend(log, true);
             EnvironmentSetup.RefreshSiteFiles(log);
+        }
+
+        /// <summary>
+        /// 更新成功后清理后端升级状态文件：后端升级目录（CurrentMpTempDir\moviepilot-update）下的
+        /// install.json（升级包清单）/ prepared.json（下载预备清单）/ state.json（升级状态）。
+        /// 代码已签出官方最新版本，旧升级状态残留会让后端启动后误判有未完成的升级；
+        /// 三个文件存在即删除（缺失静默跳过，删除失败仅记警告不阻塞流程），
+        /// 由升级 / 修复运行环境 / 启动检查更新三处更新成功后（服务重启前）调用。
+        /// </summary>
+        private static void ClearPreparedUpdateFiles(Action<string> log)
+        {
+            string updateDir = Path.Combine(AppConfig.CurrentMpTempDir, "moviepilot-update");
+            if (!Directory.Exists(updateDir))
+            {
+                return;
+            }
+            foreach (string name in new[] { "install.json", "prepared.json", "state.json" })
+            {
+                string file = Path.Combine(updateDir, name);
+                if (!File.Exists(file))
+                {
+                    continue;
+                }
+                try
+                {
+                    File.Delete(file);
+                }
+                catch (Exception ex)
+                {
+                    log.Warn("清理升级状态文件失败: " + name + " (" + ex.Message + ")");
+                }
+            }
         }
 
         /// 强制重建官方 v3 基线（"修复运行环境"的核心步骤，升级流程中有新补丁/补丁冲突时复用）：
@@ -670,6 +706,8 @@ namespace MoviePilot_V3.Services
                 }
                 // 官方更新成功：备份含用户修改时覆盖回，保留用户对分类的修改
                 RestoreCategoryYaml(log, backedUp);
+                // 更新成功后清理后端升级状态文件（moviepilot-update 下的 install.json / prepared.json / state.json）
+                ClearPreparedUpdateFiles(log);
 
                 // 5. 重新安装/更新 Python 依赖（requirements.txt 缺失时自动改用 uv sync）
                 EnvironmentSetup.InstallRequirements(AppConfig.GetPythonExe(), log);
