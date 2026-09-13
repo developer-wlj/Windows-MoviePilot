@@ -201,13 +201,12 @@ namespace MoviePilot_V3
                     string trimmed = line.Trim();
                     if (!trimmed.StartsWith("MOVIEPILOT_AUTO_UPDATE=", StringComparison.OrdinalIgnoreCase)) continue;
                     string value = trimmed.Substring("MOVIEPILOT_AUTO_UPDATE=".Length).Trim().Trim('\'', '"');
-                    return string.Equals(value, "dev", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(value, "release", StringComparison.OrdinalIgnoreCase);
+                    return string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
                 }
             }
             catch
             {
-                // 读取失败按非 dev/release 处理，走正常重启流程
+                // 读取失败按非 true 处理，走正常重启流程
             }
             return false;
         }

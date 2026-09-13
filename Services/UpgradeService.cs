@@ -18,7 +18,6 @@ namespace MoviePilot_V3.Services
         // 补丁仓库（v3-rebase 分支）：gitee 源优先，wlj 源备用；更新后 cherry-pick 标题含 rebase 的补丁提交
         private static readonly string[] PatchRepos = new string[]
         {
-            "https://gitee.com/vueconfig/MoviePilot.git",
             "https://github.com/developer-wlj/MoviePilot.git"
         };
         private const string PatchBranch = "v3-rebase";
@@ -276,26 +275,27 @@ namespace MoviePilot_V3.Services
                 {
                     isUpdate = false;
                     log.Info("本地已是最新版本");
+                    // TODO: 补丁逻辑已注释
                     // 补丁分支有更新（远程最新 rebase 提交时间比 app.ini 记录新）时，先像"修复冲突"
                     // 一样强制重建官方 v3 基线（丢弃本地旧补丁残留），再重新 cherry-pick 新补丁
-                    if (HasNewPatches(gitExe, envPath, log))
-                    {
-                        log.Info("检测到补丁分支有更新，先强制重建官方 v3 分支...");
-                        string rebuildError = ForceRebuildV3(gitExe, envPath, log);
-                        if (rebuildError != null)
-                        {
-                            onFinished(false, rebuildError);
-                            return;
-                        }
-                        // 已是最新也补打一次补丁：保证补丁完整（幂等，已应用过的自动跳过）
-                        string patchError = ApplyRebasePatchesWithFallback(gitExe, envPath, log);
-                        if (patchError != null)
-                        {
-                            onFinished(false, patchError);
-                            return;
-                        }
-                        
-                    }
+                    //if (HasNewPatches(gitExe, envPath, log))
+                    //{
+                    //log.Info("检测到补丁分支有更新，先强制重建官方 v3 分支...");
+                    //string rebuildError = ForceRebuildV3(gitExe, envPath, log);
+                    //if (rebuildError != null)
+                    //{
+                    //    onFinished(false, rebuildError);
+                    //    return;
+                    //}
+                    // 已是最新也补打一次补丁：保证补丁完整（幂等，已应用过的自动跳过）
+                    //string patchError = ApplyRebasePatchesWithFallback(gitExe, envPath, log);
+                    //if (patchError != null)
+                    //{
+                    //    onFinished(false, patchError);
+                    //    return;
+                    //}
+
+                    //}
                     output = "Already up to date";
                 }
                 else
