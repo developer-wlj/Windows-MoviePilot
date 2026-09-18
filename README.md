@@ -65,9 +65,9 @@ MoviePilot-V3\
 
 本项目基于以下开源项目构建，特此感谢：
 
-- [Nginx](https://nginx.org/)：高性能 Web 服务器与反向代理，提供前端服务
-- [Git](https://git-scm.com/)：分布式版本控制系统，用于代码克隆与管理
-- [Python](https://www.python.org/)：后端运行环境（Python 3.14.7）
+- [Nginx](https://github.com/nginx/nginx/)：高性能 Web 服务器与反向代理，提供前端服务
+- [Git](https://github.com/git/git/)：分布式版本控制系统，用于代码克隆与管理
+- [Python](https://github.com/python/cpython)：后端运行环境（Python 3.14.7）
 - [Roslyn](https://github.com/dotnet/roslyn) / [MSBuild](https://github.com/dotnet/msbuild)：C# 编译器与构建工具链
 - [MoviePilot](https://github.com/jxxghp/MoviePilot)：MoviePilot 核心项目（后端代码）
 - [MoviePilot-Frontend](https://github.com/jxxghp/MoviePilot-Frontend)：MoviePilot 前端项目

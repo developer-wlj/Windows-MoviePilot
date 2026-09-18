@@ -222,11 +222,13 @@ namespace MoviePilot_V3.Services
             if (proxyUrl != null)
             {
                 RunProcess(gitExe, "config --global http.proxy \"" + proxyUrl + "\"", AppConfig.GIT_DIR, null);
+                RunProcess(gitExe, "config --global https.proxy \"" + proxyUrl + "\"", AppConfig.GIT_DIR, null);
             }
             else
             {
                 // 未设置过时 unset 返回非零，忽略
                 RunProcess(gitExe, "config --global --unset-all http.proxy", AppConfig.GIT_DIR, null);
+                RunProcess(gitExe, "config --global --unset-all https.proxy", AppConfig.GIT_DIR, null);
             }
         }
 
