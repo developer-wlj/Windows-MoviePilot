@@ -34,6 +34,7 @@ reg query "HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" /v Release
 - 建议运行到非系统盘（如 D 盘），避免 Program Files 目录的权限问题
 - **本程序不是安装包**：`MoviePilot-V3.exe` 是免安装的绿色单文件程序，直接双击即可运行，无需安装向导；请自行创建运行目录（如 `D:\MoviePilot`）并把 exe 放入其中运行，程序会在 exe 同级目录生成 config、runtime、server、mp-web、logs、tmp 等目录
 - 首次启动服务时需要联网下载便携版组件（见下文）
+- 系统已安装 **fpcalc**（音频指纹）/ **FFmpeg** 时直接复用系统版本；未安装时自动下载便携版部署到 `runtime`，无需手动配置
 
 ## 编译（源码构建）
 
@@ -229,6 +230,6 @@ MoviePilot-V3.exe -c update   # 升级版本（与配置窗口「立即升级版
 
 - **VirScan 多引擎在线扫描全部通过**：本程序未命中任何已知病毒签名
 - **VirusTotal 里的Microsoft引擎可能报 `Trojan:Win32/Wacatac.C!ml`，属于误报**：毒名后缀 `!ml` 表示该检测来自 Microsoft 的机器学习引擎——基于文件信誉对未知程序做模型评分，而非命中已知病毒特征库
-- **程序向外发送域名的请求**：全部网络请求仅限 **nginx 官网**（下载 [nginx](https://nginx.org/en/download.html)）、**GitHub 官网**（下载 **[Git](https://github.com/git-for-windows/git/releases/tag/v2.55.0.windows.4)**、**[Python](https://github.com/astral-sh/python-build-standalone/releases/tag/20260814)**、**[uv](https://github.com/astral-sh/uv/releases/tag/0.12.5)**、**[MoviePilot](https://github.com/jxxghp/MoviePilot/releases)**、**[MoviePilot-Frontend](https://github.com/jxxghp/MoviePilot-Frontend)**、**[MoviePilot-Resources](https://github.com/jxxghp/MoviePilot-Resources)**、**[v3-rebase](https://github.com/developer-wlj/MoviePilot/tree/v3-rebase)**）与 **[v3-rebase 国内源](https://gitee.com/vueconfig/MoviePilot/tree/v3-rebase/)**，不包含其他第三方域名
+- **程序向外发送域名的请求**：全部网络请求仅限 **nginx 官网**（下载 [nginx](https://nginx.org/en/download.html)）、**GitHub 官网**（下载 **[Git](https://github.com/git-for-windows/git/releases/tag/v2.55.0.windows.4)**、**[Python](https://github.com/astral-sh/python-build-standalone/releases/tag/20260814)**、**[uv](https://github.com/astral-sh/uv/releases/tag/0.12.5)**、**[Chromaprint fpcalc](https://github.com/acoustid/chromaprint/releases/tag/v1.6.1)**、**[FFmpeg（BtbN 构建）](https://github.com/BtbN/FFmpeg-Builds/releases/tag/latest)**、**[MoviePilot](https://github.com/jxxghp/MoviePilot/releases)**、**[MoviePilot-Frontend](https://github.com/jxxghp/MoviePilot-Frontend)**、**[MoviePilot-Resources](https://github.com/jxxghp/MoviePilot-Resources)**、**[v3-rebase](https://github.com/developer-wlj/MoviePilot/tree/v3-rebase)**）与 **[v3-rebase 国内源](https://gitee.com/vueconfig/MoviePilot/tree/v3-rebase/)**，不包含其他第三方域名
 - **代码已开源**：完整源码在本仓库，可自行编译复现，也可交给任意 AI 进行代码审查
 - **无数字签名证书**：本程序未购买数字签名证书，因此 Windows SmartScreen 与部分杀毒软件可能提示未知发布者；介意者请勿使用，或自行编译源码运行

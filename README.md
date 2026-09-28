@@ -6,6 +6,7 @@
 
 - **傻瓜式可视化**：全部操作只需点击按钮，无需任何命令行知识
 - **零手动环境配置**：nginx / Git / Python / uv 便携版自动下载安装，与系统环境互不干扰
+- **媒体组件自动下载**：自动检测系统 fpcalc（音频指纹）与 FFmpeg，缺失时自动下载便携版，已安装则直接使用系统版本
 - **自动建虚拟环境**：后端运行在独立 venv 中，依赖隔离、可随时重建
 - **自动更新与补丁**：重启服务时自动检查官方最新版本，并自动合入 v3-rebase 补丁（幂等，已应用自动跳过）
 - **资源同步防漏更**：更新时默认强制重新下载前端资源与后端认证 / 站点资源，官方对同一版本号重新发布的内容也不会漏更
@@ -37,6 +38,8 @@ MoviePilot-V3\
 │   ├── venv\                  # Python 虚拟环境（标准版后端运行于此）
 │   ├── venv_t\                # freethreaded 版虚拟环境（MoviePilot-V3-T 后端运行于此）
 │   ├── tar\                   # 便携版 bsdtar（仅系统无内置 tar 时自动部署）
+│   ├── fpcalc\                # 便携版 fpcalc 音频指纹（仅系统未安装时自动部署）
+│   ├── ffmpeg\                # 便携版 FFmpeg（仅系统未安装时自动部署）
 │   └── uv\                    # 包管理：替代pip (约束依赖版本)
 ├── server\                    # MoviePilot 后端代码（官方源 + v3-rebase 补丁）
 │   ├── MoviePilot-V3\         # 标准版后端（默认运行版本）
@@ -53,6 +56,7 @@ MoviePilot-V3\
 1. 双击 `MoviePilot-V3.exe` 打开面板（默认显示主窗口，可在配置中改为启动即驻留托盘）
 2. 点击 **启动服务**：首次运行会自动完成以下准备（只需一次）：
    - 下载便携版 **nginx**、**Git**、**Python 3.14.7**、**uv**（压缩包保存在 `tmp目录`，解压到 `runtime目录`；旧系统未内置 tar 时会额外自动部署便携版 bsdtar）
+   - 系统未安装 **fpcalc**（音频指纹）/ **FFmpeg** 时自动下载便携版部署到 `runtime`（已安装则跳过下载、直接使用系统版本）
    - 创建 Python 虚拟环境并安装后端依赖
    - 下载站点资源文件（sites.pyd / user.sites.v3.bin）
    - 克隆后端代码并自动合入 v3-rebase 补丁
@@ -68,6 +72,8 @@ MoviePilot-V3\
 - [Nginx](https://github.com/nginx/nginx/)：高性能 Web 服务器与反向代理，提供前端服务
 - [Git](https://github.com/git/git/)：分布式版本控制系统，用于代码克隆与管理
 - [Python](https://github.com/python/cpython)：后端运行环境（Python 3.14.7）
+- [Chromaprint](https://github.com/acoustid/chromaprint)：音频指纹计算（fpcalc），自动下载组件
+- [FFmpeg](https://github.com/BtbN/FFmpeg-Builds)：音视频处理，自动下载组件（BtbN 构建）
 - [Roslyn](https://github.com/dotnet/roslyn) / [MSBuild](https://github.com/dotnet/msbuild)：C# 编译器与构建工具链
 - [MoviePilot](https://github.com/jxxghp/MoviePilot)：MoviePilot 核心项目（后端代码）
 - [MoviePilot-Frontend](https://github.com/jxxghp/MoviePilot-Frontend)：MoviePilot 前端项目
