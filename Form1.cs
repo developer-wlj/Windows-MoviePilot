@@ -1028,7 +1028,6 @@ namespace MoviePilot_V3
         private void MinimizeToTray()
         {
             Hide();
-            notifyIcon.ShowBalloonTip(1000, AppConfig.APP_NAME, "已最小化到系统托盘", ToolTipIcon.Info);
         }
 
         /// 打开站点。
@@ -1110,9 +1109,8 @@ namespace MoviePilot_V3
 
             allowClose = true;
             SetBusy(true);
-            // 立即隐藏窗口并提示，避免停止服务（优雅退出最长可达数十秒）期间界面停留无反馈
+            // 立即隐藏窗口，避免停止服务（优雅退出最长可达数十秒）期间界面停留无反馈
             Hide();
-            notifyIcon.ShowBalloonTip(1000, AppConfig.APP_NAME, "正在停止服务并退出...", ToolTipIcon.Info);
             Task.Run(() => ServiceManager.StopServices(ServiceLog)).ContinueWith(t =>
             {
                 if (IsDisposed) return;
