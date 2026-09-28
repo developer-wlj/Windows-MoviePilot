@@ -793,7 +793,8 @@ namespace MoviePilot_V3.Services
         /// <summary>
         /// 获取 jxxghp 官方源最新版本标签及其 commit hash（其他 Git 源仅作代码镜像，版本判断一律以官方源为准）。
         /// ls-remote 输出形如 "hash\trefs/tags/v3.0.1" 和 "hash\trefs/tags/v3.0.1^{}"（带注释标签的 peeled 提交），
-        /// peeled 行优先取标签指向的 commit hash，轻量标签用标签行 hash；按语义化版本取最大者。
+        /// peeled 行优先取标签指向的 commit hash，轻量标签用标签行 hash；按版本号取最大者
+        /// （含"-数字"修复后缀，如 v3.0.10-1 > v3.0.10）。
         /// 返回 false 表示官方源未找到版本标签。
         /// </summary>
         private static bool GetOfficialLatestTag(string gitExe, string envPath, out string latestTag, out string latestTagHash, Action<string> log, bool isPrintLog=true)
@@ -1052,40 +1053,61 @@ namespace MoviePilot_V3.Services
             }
         }
 
-        /// 是否为纯数字版本标签（形如 v3.0.1，至少 x.y 两段）。
+        /// 是否为版本标签（形如 v3.0.1，至少 x.y 两段纯数字；允许官方修复版的
+        /// "-数字"后缀，如 v3.0.10 之后发布的修复标签 v3.0.10-1）。
         private static bool IsVersionTag(string tag)
         {
             string num = tag.TrimStart('v');
             if (num.Length == 0) return false;
-            string[] seg = num.Split('.');
+            // 剥离"-修订号"后缀（v3.0.10-1 → 主版本 3.0.10 + 修订号 1）：官方会对
+            // 已发布版本追加 -1 / -2 等修复标签，不能按非版本标签整体丢弃
+            int dash = num.IndexOf('-');
+            string main = dash >= 0 ? num.Substring(0, dash) : num;
+            string[] seg = main.Split('.');
             if (seg.Length < 2 || seg.Length > 3) return false;
             foreach (string s in seg)
             {
                 int v;
                 if (!int.TryParse(s, out v)) return false;
             }
+            if (dash >= 0)
+            {
+                // 非数字后缀（形如 -beta）不是版本标签；空后缀（"3.0.10-"）同样拒绝
+                int rev;
+                if (!int.TryParse(num.Substring(dash + 1), out rev) || rev < 0) return false;
+            }
             return true;
         }
 
-        /// 解析标签版本号（形如 v3.0.1 → {3,0,1}）。
+        /// 解析标签版本号（形如 v3.0.1 → {3,0,1,0}；修复版 v3.0.10-1 → {3,0,10,1}，
+        /// 第 4 位为"-数字"修订号，无后缀为 0）。
         private static int[] ParseVersion(string tag)
         {
-            int[] parts = new int[3];
-            string[] seg = tag.TrimStart('v').Split('.');
+            int[] parts = new int[4];
+            string num = tag.TrimStart('v');
+            int dash = num.IndexOf('-');
+            string[] seg = (dash >= 0 ? num.Substring(0, dash) : num).Split('.');
             for (int i = 0; i < 3 && i < seg.Length; i++)
             {
                 int v;
                 if (int.TryParse(seg[i], out v)) parts[i] = v;
             }
+            if (dash >= 0)
+            {
+                int rev;
+                if (int.TryParse(num.Substring(dash + 1), out rev) && rev >= 0) parts[3] = rev;
+            }
             return parts;
         }
 
         /// 比较两个版本标签，返回 t1 相对 t2 的大小（>0 表示 t1 更新）。
+        /// 主版本相同时比较"-数字"修订号：官方修复版晚于同主版本正式版发布，
+        /// 应视为更新（v3.0.10-1 > v3.0.10）。
         private static int CompareVersions(string t1, string t2)
         {
             int[] v1 = ParseVersion(t1);
             int[] v2 = ParseVersion(t2);
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 4; i++)
             {
                 if (v1[i] != v2[i]) return v1[i].CompareTo(v2[i]);
             }
