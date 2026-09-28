@@ -42,6 +42,13 @@ namespace MoviePilot_V3.Services
         private const string TarVersion = "3.8.9";
         private const string TarDownloadUrl = "https://github.com/li-ruijie/libarchive/releases/download/v3.8.9/libarchive-v3.8.9-windows-msvc-x64-static.zip";
 
+        // ---- 媒体工具（后端使用，系统 PATH 已安装时直接使用）：缺失时下载官方便携版部署到
+        // Chromaprint fpcalc（音频指纹）与 BtbN FFmpeg 8.1 gpl 构建 ----
+        private const string FpcalcVersion = "chromaprint-fpcalc-1.6.1-windows-x86_64.zip";
+        private const string FpcalcDownloadUrl = "https://github.com/acoustid/chromaprint/releases/download/v1.6.1/chromaprint-fpcalc-1.6.1-windows-x86_64.zip";
+        private const string FFmpegVersion = "ffmpeg-n8.1-latest-win64-gpl-8.1.zip";
+        private const string FFmpegDownloadUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-gpl-8.1.zip";
+
         // PAC 脚本（AutoConfigURL）按目标 URL 动态返回代理；git 全局 http.proxy 与后端环境变量注入
         // 只能携带一个固定代理地址，无目标 URL 可带时以 GitHub 为探测目标解析 PAC（面板 git / 资源下载主要指向 GitHub）
         private const string PacProbeUrl = "https://github.com/";
@@ -65,7 +72,7 @@ namespace MoviePilot_V3.Services
         // 前端发行包（MoviePilot-Frontend release 的 dist.zip，版本取自后端 version.py 的 FRONTEND_VERSION）
         private const string FrontendReleaseBase = "https://github.com/jxxghp/MoviePilot-Frontend/releases/download/";
 
-        /// <summary>完整初始化流程：代理 → tar → nginx → git → python → 配置同步 → 代码（clone+补丁）→ venv（依赖）→ 站点资源。</summary>
+        /// <summary>完整初始化流程：代理 → tar → nginx → git → python → uv → 媒体工具（fpcalc / ffmpeg）→ 配置同步 → 代码（clone+补丁）→ venv（依赖）→ 站点资源。</summary>
         public static void EnsureEnvironment(Action<string> log)
         {
             try
@@ -86,6 +93,9 @@ namespace MoviePilot_V3.Services
             EnsureGit(log);
             EnsurePython(log);
             EnsureUv(log);
+            // 媒体工具：系统 PATH 未安装 fpcalc / ffmpeg 时下载便携版（失败仅提示不阻断，下次启动重试）
+            EnsureFpcalc(log);
+            EnsureFFmpeg(log);
             SyncNginxConfigs(log);
             // 先确保后端代码（克隆官方 v3 + 打 v3-rebase 补丁）：依赖安装（requirements.txt）与站点资源（SITE_DIR）都位于代码目录内
             EnsureCode(log);
@@ -404,6 +414,148 @@ namespace MoviePilot_V3.Services
             {
                 Cleanup(archive, extractDir);
             }
+        }
+
+        // ==================== 媒体工具（fpcalc / ffmpeg） ====================
+        // 后端媒体处理依赖系统第三方工具（fpcalc 音频指纹 / ffmpeg 音视频转码）：优先使用系统 PATH
+        // 中已安装的版本，缺失时自动下载官方便携版部署到 fpcalc /
+        // ffmpeg（部署目录已加入 BuildEnvPath，后端子进程可直接调用）；部署失败仅提示
+        // 不阻断后续流程，下次启动服务重试。
+
+        /// <summary>系统 PATH 中是否存在指定可执行文件（第三方工具系统安装检测；无 PATH 或
+        /// 目录无权限访问时返回 false）。</summary>
+        private static bool ExistsOnSystemPath(string exeName)
+        {
+            string path = Environment.GetEnvironmentVariable("PATH");
+            if (string.IsNullOrEmpty(path))
+            {
+                return false;
+            }
+            foreach (string dir in path.Split(';'))
+            {
+                string d = dir.Trim().Trim('"');
+                if (d.Length == 0)
+                {
+                    continue;
+                }
+                try
+                {
+                    if (File.Exists(Path.Combine(d, exeName)))
+                    {
+                        return true;
+                    }
+                }
+                catch
+                {
+                    // 非法路径字符等：跳过该目录
+                }
+            }
+            return false;
+        }
+
+        /// <summary>确保 fpcalc（Chromaprint 音频指纹）可用：系统 PATH 已安装或便携版已部署则跳过，
+        /// 否则下载官方 portable zip 部署到 runtime\fpcalc（失败仅提示不阻断）。</summary>
+        public static void EnsureFpcalc(Action<string> log)
+        {
+            if (ExistsOnSystemPath("fpcalc.exe"))
+            {
+                return;
+            }
+            string fpcalcExe = Path.Combine(AppConfig.FPCALC_DIR, "fpcalc.exe");
+            if (File.Exists(fpcalcExe))
+            {
+                return; // 便携版已就绪
+            }
+            log.Info("未找到 fpcalc（Chromaprint），开始下载便携版...");
+            string archive = Path.Combine(AppConfig.TMP_DIR, FpcalcVersion);
+            string extractDir = Path.Combine(AppConfig.TMP_DIR, "fpcalc-extract-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                if (!DownloadFile(FpcalcDownloadUrl, archive, log, false))
+                {
+                    return;
+                }
+                if (!ExtractArchive(archive, extractDir, log))
+                {
+                    return;
+                }
+                if (!DeployToolFromExtract(extractDir, "fpcalc.exe", AppConfig.FPCALC_DIR, log, "fpcalc"))
+                {
+                    return;
+                }
+                log.Info("便携版 fpcalc 部署完成: " + fpcalcExe);
+            }
+            catch (Exception ex)
+            {
+                log.Error("部署便携版 fpcalc 失败: " + ex.Message);
+            }
+            finally
+            {
+                Cleanup(archive, extractDir);
+            }
+        }
+
+        /// <summary>确保 ffmpeg 可用：系统 PATH 已安装或便携版已部署则跳过，
+        /// 否则下载 BtbN 构建 zip 部署到 runtime\ffmpeg（失败仅提示不阻断）。</summary>
+        public static void EnsureFFmpeg(Action<string> log)
+        {
+            if (ExistsOnSystemPath("ffmpeg.exe"))
+            {
+                return;
+            }
+            string ffmpegExe = Path.Combine(AppConfig.FFMPEG_DIR, "ffmpeg.exe");
+            if (File.Exists(ffmpegExe))
+            {
+                return; // 便携版已就绪
+            }
+            log.Info("未找到 ffmpeg，开始下载便携版（体积较大，请耐心等待）...");
+            string archive = Path.Combine(AppConfig.TMP_DIR, FFmpegVersion);
+            string extractDir = Path.Combine(AppConfig.TMP_DIR, "ffmpeg-extract-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                if (!DownloadFile(FFmpegDownloadUrl, archive, log, false))
+                {
+                    return;
+                }
+                if (!ExtractArchive(archive, extractDir, log))
+                {
+                    return;
+                }
+                if (!DeployToolFromExtract(extractDir, "ffmpeg.exe", AppConfig.FFMPEG_DIR, log, "ffmpeg"))
+                {
+                    return;
+                }
+                log.Info("便携版 ffmpeg 部署完成: " + ffmpegExe);
+            }
+            catch (Exception ex)
+            {
+                log.Error("部署便携版 ffmpeg 失败: " + ex.Message);
+            }
+            finally
+            {
+                Cleanup(archive, extractDir);
+            }
+        }
+
+        /// <summary>从解压目录中递归查找指定可执行文件（不依赖压缩包外层目录名），
+        /// 找到后把其所在目录的全部内容整体部署到目标目录（如 zip 的 bin 目录：
+        /// ffmpeg.exe 与其同目录程序一并带出）；目标目录内存在指定可执行文件视为成功。</summary>
+        private static bool DeployToolFromExtract(string extractDir, string exeName, string destDir, Action<string> log, string toolName)
+        {
+            string[] found = Directory.GetFiles(extractDir, exeName, SearchOption.AllDirectories);
+            if (found.Length == 0)
+            {
+                log.Error(toolName + " 压缩包结构异常（未找到 " + exeName + "），部署中止");
+                return false;
+            }
+            Directory.CreateDirectory(destDir);
+            MoveContents(Path.GetDirectoryName(found[0]), destDir);
+            if (!File.Exists(Path.Combine(destDir, exeName)))
+            {
+                log.Error(toolName + " 部署后校验失败（缺少 " + exeName + "）: " + destDir);
+                return false;
+            }
+            return true;
         }
 
         /// <summary>把 CONFIG_DIR 的 nginx.conf / common.conf 同步到 NGINX_DIR\conf（内容不同才覆盖，

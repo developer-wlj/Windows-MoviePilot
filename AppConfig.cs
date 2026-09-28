@@ -91,6 +91,11 @@ namespace MoviePilot_V3
         // 供解压 tar.gz 使用（zip 已由程序集解压，不再依赖系统 tar）
         public static readonly string TAR_DIR = Path.Combine(BIN_DIR, "tar");
 
+        // 便携版 fpcalc（Chromaprint 音频指纹）/ FFmpeg（音视频转码）目录：系统 PATH 未安装
+        // 对应工具时自动下载部署到这里，供后端媒体处理子进程调用（已加入 BuildEnvPath）
+        public static readonly string FPCALC_DIR = Path.Combine(BIN_DIR, "fpcalc");
+        public static readonly string FFMPEG_DIR = Path.Combine(BIN_DIR, "ffmpeg");
+
 
         // Git 相关目录
         public static readonly string GIT_CMD_DIR = Path.Combine(GIT_DIR, "cmd");
@@ -150,7 +155,7 @@ namespace MoviePilot_V3
             return GIT_CMD_DIR + ";" + GIT_BIN_DIR + ";" + GIT_USR_BIN_DIR + ";" +
                    Path.Combine(CurrentVenvDir, "Scripts") + ";" +
                    Path.Combine(CurrentPythonDir, "Scripts") + ";" + CurrentPythonDir + ";" +
-                   UV_DIR + ";" + NGINX_DIR + ";" + TAR_DIR + ";" + BASE_DIR;
+                   UV_DIR + ";" + NGINX_DIR + ";" + TAR_DIR + ";" + FPCALC_DIR + ";" + FFMPEG_DIR + ";" + BASE_DIR;
         }
     }
 }
